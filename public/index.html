@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LM Studio Web-Assistent</title>
+    <!-- Tailwind CSS via CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Font Awesome für Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Basis-Styling (wird noch für Komponenten benötigt, die nicht durch Tailwind abgedeckt sind) -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gray-50 text-gray-800">
+<div class="container flex flex-col h-screen w-full max-w-full m-0 p-0">
+    <header class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <h1 class="text-xl font-semibold flex items-center gap-2">
+            <i class="fas fa-robot"></i> LM Studio Web-Assistent
+        </h1>
+        <div class="flex items-center gap-3 text-sm">
+            <!-- Web-Suche Dropdown -->
+            <div class="flex items-center gap-2">
+                <label for="webSearchMode" class="text-sm">Web-Suche:</label>
+                <select id="webSearchMode" class="bg-transparent text-white text-sm border border-blue-400 rounded px-2 py-1 focus:outline-none">
+                    <option value="auto">Auto</option>
+                    <option value="always">Immer</option>
+                    <option value="never">Nie</option>
+                </select>
+            </div>
+            <button id="settingsButton" class="settings-button">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="chat-container">
+        <div id="chat-messages" class="chat-messages">
+            <div class="message assistant">
+                <div class="message-content">
+                    <p>Hallo! Ich bin dein lokaler KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?</p>
+                    <p class="tip">Tipp: Im "Auto"-Modus entscheide ich selbst, wann eine Web-Suche sinnvoll ist. Du kannst auch "lokal:" voranstellen, um sicherzustellen, dass keine Suche erfolgt.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+        <textarea
+                id="user-input"
+                placeholder="Schreibe deine Frage hier..."
+                rows="2"
+                autofocus
+        ></textarea>
+            <button id="send-button" class="send-button">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="status-indicator" class="status">
+        <div class="status-dot offline"></div>
+        <span>Verbindung zu LM Studio wird geprüft...</span>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-cog"></i> Einstellungen</h2>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="settings-tabs">
+                <div class="tab-header">
+                    <button class="tab-button active" data-tab="general">Allgemein</button>
+                    <button class="tab-button" data-tab="connection">Verbindung</button>
+                    <button class="tab-button" data-tab="search">Websuche</button>
+                    <button class="tab-button" data-tab="advanced">Erweitert</button>
+                </div>
+
+                <div class="tab-content">
+                    <!-- Allgemeine Einstellungen -->
+                    <div class="tab-pane active" id="general-tab">
+                        <div class="form-group">
+                            <label for="systemPrompt">System-Prompt:</label>
+                            <textarea id="systemPrompt" rows="5"></textarea>
+                            <small class="form-hint">Dieser Text wird bei jeder Anfrage als Anweisung an das Modell gesendet.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Im System-Tray minimieren
+                                <input type="checkbox" id="minimizeToTray">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Die App wird in den System-Tray minimiert statt geschlossen.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Mit Windows starten
+                                <input type="checkbox" id="startWithWindows">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Startet die App automatisch beim Windows-Start.</small>
+                        </div>
+                    </div>
+
+                    <!-- Verbindungseinstellungen -->
+                    <div class="tab-pane" id="connection-tab">
+                        <div class="form-group">
+                            <label for="lmStudioUrl">LM Studio API URL:</label>
+                            <input type="text" id="lmStudioUrl">
+                            <small class="form-hint">Die URL des LM Studio API-Servers.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="lmStudioModel">Modellname:</label>
+                            <input type="text" id="lmStudioModel">
+                            <small class="form-hint">Name des Modells in LM Studio. Standardmäßig "local-model".</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverPort">Server-Port:</label>
+                            <input type="number" id="serverPort" min="1024" max="65535">
+                            <small class="form-hint">Port des internen Servers. Neustart erforderlich.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Automatisch LM Studio-Verbindung prüfen
+                                <input type="checkbox" id="autoCheckLMStudio">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Prüft regelmäßig die Verbindung zu LM Studio.</small>
+                        </div>
+                    </div>
+
+                    <!-- Websuche-Einstellungen -->
+                    <div class="tab-pane" id="search-tab">
+                        <div class="form-group">
+                            <label for="maxSearchResults">Maximale Suchergebnisse:</label>
+                            <input type="number" id="maxSearchResults" min="1" max="10">
+                            <small class="form-hint">Anzahl der Suchergebnisse pro Anfrage.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="searchTimeout">Timeout (ms):</label>
+                            <input type="number" id="searchTimeout" min="1000" max="15000" step="1000">
+                            <small class="form-hint">Maximale Wartezeit für Suchanfragen in Millisekunden.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="defaultSearchMode">Standard-Suchmodus:</label>
+                            <select id="defaultSearchMode" class="block w-full p-2 border border-gray-300 rounded">
+                                <option value="auto">Auto (KI entscheidet)</option>
+                                <option value="always">Immer suchen</option>
+                                <option value="never">Nie suchen</option>
+                            </select>
+                            <small class="form-hint">Der Standardmodus für die Websuche beim Start der App.</small>
+                        </div>
+                    </div>
+
+                    <!-- Erweiterte Einstellungen -->
+                    <div class="tab-pane" id="advanced-tab">
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Debug-Modus
+                                <input type="checkbox" id="debugMode">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Zeigt zusätzliche Debug-Informationen in der Konsole an.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Nach Updates suchen
+                                <input type="checkbox" id="checkForUpdates">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Prüft automatisch auf neue Versionen.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <button id="reset-settings" class="danger-button">Auf Standardwerte zurücksetzen</button>
+                            <small class="form-hint">Setzt alle Einstellungen auf die Standardwerte zurück.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button id="save-settings" class="primary-button">Speichern</button>
+                <button id="cancel-settings" class="secondary-button">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Template -->
+<div id="notification-container" class="fixed bottom-4 right-4 z-50"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="script.js"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>
