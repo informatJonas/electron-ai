@@ -92,29 +92,56 @@ jobs:
 
       # Windows specific setup
       - name: Windows code signing setup
-        if: matrix.os == 'windows-latest' && secrets.WIN_CSC_LINK != ''
+        if: matrix.os == 'windows-latest'
         shell: bash
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: |
-          echo "CSC_LINK=$WIN_CSC_LINK" >> $GITHUB_ENV
-          echo "CSC_KEY_PASSWORD=$WIN_CSC_KEY_PASSWORD" >> $GITHUB_ENV
+          if [ -n "$WIN_CSC_LINK" ] && [ -n "$WIN_CSC_KEY_PASSWORD" ]; then
+            echo "CSC_LINK=$WIN_CSC_LINK" >> $GITHUB_ENV
+            echo "CSC_KEY_PASSWORD=$WIN_CSC_KEY_PASSWORD" >> $GITHUB_ENV
+            echo "Code signing für Windows aktiviert"
+          else
+            echo "Keine Windows-Codesignierungs-Credentials gefunden. Die App wird ohne Signatur erstellt."
+          fi
 
       # macOS specific setup
       - name: macOS code signing setup
-        if: matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK != ''
+        if: matrix.os == 'macos-latest'
         shell: bash
         env:
           MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "CSC_LINK=$MAC_CSC_LINK" >> $GITHUB_ENV
-          echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD" >> $GITHUB_ENV
-          echo "APPLE_ID=$APPLE_ID" >> $GITHUB_ENV
-          echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD" >> $GITHUB_ENV
+          if [ -n "$MAC_CSC_LINK" ] && [ -n "$MAC_CSC_KEY_PASSWORD" ]; then
+            echo "CSC_LINK=$MAC_CSC_LINK" >> $GITHUB_ENV
+            echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD" >> $GITHUB_ENV
+            echo "Code signing für macOS aktiviert"
+          
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+              echo "APPLE_ID=$APPLE_ID" >> $GITHUB_ENV
+              echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD" >> $GITHUB_ENV
+          
+              if [ -n "$APPLE_TEAM_ID" ]; then
+                echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> $GITHUB_ENV
+              fi
+          
+              echo "Notarisierung für macOS aktiviert"
+            else
+              echo "Keine Notarisierungs-Credentials gefunden. Die App wird ohne Notarisierung erstellt."
+            fi
+          else
+            echo "Keine macOS-Codesignierungs-Credentials gefunden. Die App wird ohne Signatur erstellt."
+          fi
+
+      # Install additional dependencies for notarization if needed
+      - name: Install electron-notarize (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: npm install --save-dev @electron/notarize
 
       # Build the app for the specific platform
       - name: Build app
@@ -122,12 +149,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Package artifacts based on platform
+      - name: Package Windows artifacts
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir -p output
+          cp "dist/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}" output/
+
+      - name: Package macOS artifacts
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p output
+          cp "dist/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}" output/
+
+      - name: Package Linux artifacts
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir -p output
+          cp "dist/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}" output/
+
       # Upload build artifacts to GitHub
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}-${{ matrix.platform }}
-          path: dist/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}
+          path: output
 
       # Upload to release
       - name: Upload release asset
@@ -136,7 +182,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: dist/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}
+          asset_path: output/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}
           asset_name: ${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}
           asset_content_type: application/octet-stream
 
