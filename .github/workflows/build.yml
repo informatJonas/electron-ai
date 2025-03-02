@@ -1,14 +1,11 @@
 name: Build and Release Windows
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to build (e.g. 1.0.0)'
-        required: true
+        required: false
         default: ''
 
 # Explizite Berechtigungen hinzufügen
@@ -20,7 +17,8 @@ permissions:
 
 jobs:
   release:
-    name: Create Release
+    name: Create ReleaseCreates a new GitHub release with the specified version.
+
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -28,7 +26,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        with:
+Checks out the repository with a shallow clone, fetching only the latest commit history.
+                with:
           fetch-depth: 0
 
       - name: Get version
@@ -37,7 +36,8 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+            VERSION=$(node -p "require('./package.json').version")
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release
@@ -144,6 +144,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Finalize release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
         run: |
-          echo "Release build complete: ${{ needs.release.outputs.version }}"
+          gh release edit v$VERSION --draft=false
           echo "Please edit the draft release on GitHub to add release notes and publish."

@@ -2105,6 +2105,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /**
+     * Starts a new conversation with the AI assistant.
+     *
+     * This function is responsible for initializing a new conversation session with the AI assistant.
+     * It resets the processing state, clears the chat history, and adds a welcome message from the assistant.
+     *
+     * @returns {Promise<boolean>} - Returns true if the new conversation was started successfully, false otherwise.
+     */
     async function startNewConversation() {
         if (isProcessing) {
             cancelCurrentRequest = true;
