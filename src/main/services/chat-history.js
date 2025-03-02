@@ -1,16 +1,16 @@
 // src/main/services/chat-history.js
-// Module for chat history management
+// Module for chat history management - ES Module Version
 
-const path = require('path');
-const fs = require('fs');
-const { app } = require('electron');
-const { ensureDirectoryExists } = require('../utils/file-utils');
-const { truncate, generateUniqueId } = require('../utils/string-utils');
+import {app} from 'electron';
+import fs from 'fs';
+import path from 'path';
+import {ensureDirectoryExists} from '../utils/file-utils.js';
+import {generateUniqueId, truncate} from '../utils/string-utils.js';
 
 /**
  * Chat History Manager class
  */
-class ChatHistoryManager {
+export default class ChatHistoryManager {
     /**
      * Creates a new ChatHistoryManager instance
      * @param {Object} config - Configuration options
@@ -27,7 +27,7 @@ class ChatHistoryManager {
 
         // Current history in memory
         this.currentSessionId = null;
-        this.currentHistory = [];
+        this.currentHistory   = [];
 
         // Initialize
         this.initialize();
@@ -37,6 +37,8 @@ class ChatHistoryManager {
      * Initializes the chat history directory
      */
     initialize() {
+        console.log('Initializing chat history directory:', this.historyDir);
+
         try {
             // Ensure history directory exists
             ensureDirectoryExists(this.historyDir);
@@ -57,7 +59,7 @@ class ChatHistoryManager {
      */
     startNewConversation() {
         this.currentSessionId = generateUniqueId('conversation_');
-        this.currentHistory = [];
+        this.currentHistory   = [];
         return this.currentSessionId;
     }
 
@@ -69,13 +71,13 @@ class ChatHistoryManager {
      */
     addMessage(role, content) {
         // Add message to current history
-        const message = { role, content, timestamp: Date.now() };
+        const message = {role, content, timestamp: Date.now()};
         this.currentHistory.push(message);
 
         // Limit number of messages
         if (this.currentHistory.length > this.maxMessagesPerConversation) {
             // Keep system prompt (if any) and remove oldest messages
-            const systemPrompt = this.currentHistory.find(msg => msg.role === 'system');
+            const systemPrompt  = this.currentHistory.find(msg => msg.role === 'system');
             this.currentHistory = this.currentHistory.slice(-this.maxMessagesPerConversation);
 
             // Ensure system prompt is preserved
@@ -97,9 +99,9 @@ class ChatHistoryManager {
         try {
             const filePath = path.join(this.historyDir, `${this.currentSessionId}.json`);
             fs.writeFileSync(filePath, JSON.stringify({
-                id: this.currentSessionId,
+                id         : this.currentSessionId,
                 lastUpdated: Date.now(),
-                messages: this.currentHistory
+                messages   : this.currentHistory
             }, null, 2));
         } catch (error) {
             console.error('Error saving chat history:', error);
@@ -116,9 +118,9 @@ class ChatHistoryManager {
             const filePath = path.join(this.historyDir, `${conversationId}.json`);
 
             if (fs.existsSync(filePath)) {
-                const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                const data            = JSON.parse(fs.readFileSync(filePath, 'utf8'));
                 this.currentSessionId = conversationId;
-                this.currentHistory = data.messages || [];
+                this.currentHistory   = data.messages || [];
                 return this.currentHistory;
             }
 
@@ -149,15 +151,15 @@ class ChatHistoryManager {
 
             for (const file of files) {
                 const filePath = path.join(this.historyDir, file);
-                const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                const data     = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
                 // Find first user message (for title)
                 const firstUserMessage = data.messages.find(msg => msg.role === 'user');
 
                 conversations.push({
-                    id: data.id,
-                    title: this.generateConversationTitle(firstUserMessage?.content),
-                    lastUpdated: data.lastUpdated,
+                    id          : data.id,
+                    title       : this.generateConversationTitle(firstUserMessage?.content),
+                    lastUpdated : data.lastUpdated,
                     messageCount: data.messages.length
                 });
             }
@@ -239,8 +241,8 @@ class ChatHistoryManager {
                 .filter(file => file.endsWith('.json'))
                 .map(file => {
                     const filePath = path.join(this.historyDir, file);
-                    const stat = fs.statSync(filePath);
-                    return { file, mtime: stat.mtime.getTime() };
+                    const stat     = fs.statSync(filePath);
+                    return {file, mtime: stat.mtime.getTime()};
                 })
                 .sort((a, b) => b.mtime - a.mtime); // Newest first
 
@@ -276,7 +278,7 @@ class ChatHistoryManager {
 
         // Add system prompt if provided
         if (systemPrompt) {
-            formattedHistory.push({ role: 'system', content: systemPrompt });
+            formattedHistory.push({role: 'system', content: systemPrompt});
         }
 
         // Create copy of current history
@@ -303,7 +305,7 @@ class ChatHistoryManager {
         historyToFormat.forEach(message => {
             if (message.role !== 'system' || !systemPrompt) {
                 formattedHistory.push({
-                    role: message.role,
+                    role   : message.role,
                     content: message.content
                 });
             }
@@ -312,5 +314,3 @@ class ChatHistoryManager {
         return formattedHistory;
     }
 }
-
-module.exports = ChatHistoryManager;

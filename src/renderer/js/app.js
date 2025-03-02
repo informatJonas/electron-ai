@@ -5,11 +5,12 @@
  * Main application entry point
  */
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Document loaded');
     // Initialize all UI components
     initUI();
     loadSources();
-    initChatHistory();
 
+    initChatHistory();
     // Setup event handlers
     setupEventHandlers();
     setupIpcListeners();
@@ -43,8 +44,8 @@ function initUI() {
  */
 function setupEventHandlers() {
     // Elements
-    const sendButton = document.getElementById('send-button');
-    const userInput = document.getElementById('user-input');
+    const sendButton     = document.getElementById('send-button');
+    const userInput      = document.getElementById('user-input');
     const settingsButton = document.getElementById('settingsButton');
 
     // Send message on button click
@@ -82,7 +83,7 @@ function setupEventHandlers() {
  */
 function setupTabNavigation() {
     const tabButtons = document.querySelectorAll('.tab-button');
-    const tabPanes = document.querySelectorAll('.tab-pane');
+    const tabPanes   = document.querySelectorAll('.tab-pane');
 
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -109,11 +110,11 @@ function setupTabNavigation() {
  * Setup settings modal events
  */
 function setupSettingsModalEvents() {
-    const settingsModal = document.getElementById('settings-modal');
-    const closeSettingsButton = document.querySelector('.close');
-    const saveSettingsButton = document.getElementById('save-settings');
+    const settingsModal        = document.getElementById('settings-modal');
+    const closeSettingsButton  = document.querySelector('.close');
+    const saveSettingsButton   = document.getElementById('save-settings');
     const cancelSettingsButton = document.getElementById('cancel-settings');
-    const resetSettingsButton = document.getElementById('reset-settings');
+    const resetSettingsButton  = document.getElementById('reset-settings');
 
     if (closeSettingsButton) {
         closeSettingsButton.addEventListener('click', () => {
@@ -187,7 +188,7 @@ function setupIpcListeners() {
 
     // Models tab listener
     window.electronAPI.onShowModelsTab(() => {
-        const settingsModal = document.getElementById('settings-modal');
+        const settingsModal         = document.getElementById('settings-modal');
         settingsModal.style.display = 'block';
 
         // Switch tab
@@ -211,11 +212,11 @@ function setupIpcListeners() {
 
     // Model download progress listener
     window.electronAPI.onModelProgress((progress) => {
-        const modelProgressBar = document.getElementById('model-progress-bar');
+        const modelProgressBar  = document.getElementById('model-progress-bar');
         const modelProgressText = document.getElementById('model-progress-text');
 
         if (modelProgressBar && modelProgressText) {
-            modelProgressBar.value = progress.progress;
+            modelProgressBar.value        = progress.progress;
             modelProgressText.textContent = progress.text;
         }
     });
@@ -226,6 +227,7 @@ function setupIpcListeners() {
  */
 async function checkConnectionStatus() {
     try {
+        console.log('checkConnectionStatus electronAPI', window.electronAPI)
         const config = await window.electronAPI.getSettings();
 
         // Remove the upper status display from the DOM as we don't need it anymore
@@ -242,13 +244,13 @@ async function checkConnectionStatus() {
             const modelResult = await window.electronAPI.getAvailableModels();
             if (modelResult.success && modelResult.currentModel) {
                 updateApplicationStatus({
-                    status: 'loaded',
+                    status : 'loaded',
                     message: `Model loaded: ${modelResult.currentModel}`,
-                    model: modelResult.currentModel
+                    model  : modelResult.currentModel
                 });
             } else {
                 updateApplicationStatus({
-                    status: 'error',
+                    status : 'error',
                     message: 'No model loaded'
                 });
             }
@@ -259,7 +261,7 @@ async function checkConnectionStatus() {
     } catch (error) {
         console.error('Error checking status:', error);
         updateApplicationStatus({
-            status: 'error',
+            status : 'error',
             message: 'Connection problem'
         });
     }
@@ -270,7 +272,8 @@ async function checkConnectionStatus() {
  */
 async function loadDefaultSearchMode() {
     try {
-        const config = await window.electronAPI.getSettings();
+        console.log('loadDefaultSearchMode electronAPI', window.electronAPI)
+        const config        = await window.electronAPI.getSettings();
         const webSearchMode = document.getElementById('webSearchMode');
 
         if (webSearchMode && config.defaultSearchMode) {
@@ -314,11 +317,11 @@ function setupTextareaAutoResize() {
     const userInput = document.getElementById('user-input');
 
     if (userInput) {
-        userInput.addEventListener('input', function() {
+        userInput.addEventListener('input', function () {
             // Reset height to auto to get the scrollHeight
-            this.style.height = 'auto';
+            this.style.height    = 'auto';
             // Set new height to scrollHeight limited to 300px
-            this.style.height = Math.min(this.scrollHeight, 300) + 'px';
+            this.style.height    = Math.min(this.scrollHeight, 300) + 'px';
             // Show scrollbar if scrollHeight > 300px
             this.style.overflowY = this.scrollHeight > 300 ? 'scroll' : 'hidden';
         });
@@ -336,17 +339,17 @@ function setupTextareaAutoResize() {
  */
 function addConversationButtons() {
     // Create container for conversation buttons
-    const buttonsContainer = document.createElement('div');
+    const buttonsContainer     = document.createElement('div');
     buttonsContainer.className = 'flex items-center gap-2 ml-4';
 
     // New chat button
-    const newChatButton = document.createElement('button');
+    const newChatButton     = document.createElement('button');
     newChatButton.className = 'bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-1 px-2 rounded';
     newChatButton.innerHTML = '<i class="fas fa-plus mr-1"></i> New Chat';
     newChatButton.addEventListener('click', startNewConversation);
 
     // History button
-    const historyButton = document.createElement('button');
+    const historyButton     = document.createElement('button');
     historyButton.className = 'bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium py-1 px-2 rounded';
     historyButton.innerHTML = '<i class="fas fa-history mr-1"></i> History';
     historyButton.addEventListener('click', showHistoryModal);

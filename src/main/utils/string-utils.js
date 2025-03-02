@@ -1,12 +1,12 @@
 // src/main/utils/string-utils.js
-// String manipulation utilities
+// String manipulation utilities - ES Module Version
 
 /**
  * Escapes HTML special characters in a string
  * @param {string} text - Input text
  * @returns {string} - HTML-escaped text
  */
-function escapeHtml(text) {
+export function escapeHtml(text) {
     return text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -20,7 +20,7 @@ function escapeHtml(text) {
  * @param {string} value - String value to convert
  * @returns {boolean|number|string} - Converted value
  */
-function convertValue(value) {
+export function convertValue(value) {
     if (value === 'true') return true;
     if (value === 'false') return false;
     if (!isNaN(value) && value.trim() !== '') return Number(value);
@@ -32,7 +32,7 @@ function convertValue(value) {
  * @param {string} key - camelCase string
  * @returns {string} - UPPER_SNAKE_CASE string
  */
-function keyToEnvFormat(key) {
+export function keyToEnvFormat(key) {
     return key.replace(/([A-Z])/g, '_$1').toUpperCase();
 }
 
@@ -41,7 +41,7 @@ function keyToEnvFormat(key) {
  * @param {string} key - UPPER_SNAKE_CASE string
  * @returns {string} - camelCase string
  */
-function keyToCamelCase(key) {
+export function keyToCamelCase(key) {
     return key.toLowerCase().replace(/_([a-z])/g, (match, char) => char.toUpperCase());
 }
 
@@ -52,7 +52,7 @@ function keyToCamelCase(key) {
  * @param {boolean} addEllipsis - Whether to add ellipsis
  * @returns {string} - Truncated text
  */
-function truncate(text, maxLength = 30, addEllipsis = true) {
+export function truncate(text, maxLength = 30, addEllipsis = true) {
     if (!text || text.length <= maxLength) return text;
     return text.substring(0, maxLength) + (addEllipsis ? '...' : '');
 }
@@ -62,7 +62,7 @@ function truncate(text, maxLength = 30, addEllipsis = true) {
  * @param {string} text - Input text
  * @returns {Array} - Array of file reference objects
  */
-function extractFileReferences(text) {
+export function extractFileReferences(text) {
     const references = [];
     // Matches the pattern #file:sourceId/path/to/file
     const regex = /#file:([a-zA-Z0-9_]+)\/([^\s\n]+)/g;
@@ -84,7 +84,7 @@ function extractFileReferences(text) {
  * @param {string} prefix - Optional prefix for the ID
  * @returns {string} - Unique ID
  */
-function generateUniqueId(prefix = '') {
+export function generateUniqueId(prefix = '') {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 9);
     return `${prefix}${timestamp}_${random}`;
@@ -95,7 +95,7 @@ function generateUniqueId(prefix = '') {
  * @param {string} url - URL to validate
  * @returns {boolean} - True if valid URL
  */
-function isValidUrl(url) {
+export function isValidUrl(url) {
     try {
         new URL(url);
         return true;
@@ -111,7 +111,7 @@ function isValidUrl(url) {
  * @param {Object} options - Formatting options
  * @returns {string} - Formatted date string
  */
-function formatDate(date, locale = 'de-DE', options = {}) {
+export function formatDate(date, locale = 'de-DE', options = {}) {
     const dateObj = date instanceof Date ? date : new Date(date);
 
     // Default options
@@ -132,7 +132,7 @@ function formatDate(date, locale = 'de-DE', options = {}) {
  * @param {Function} keyFn - Optional function to extract comparison key
  * @returns {Array} - Deduplicated array
  */
-function uniqueArray(array, keyFn = null) {
+export function uniqueArray(array, keyFn = null) {
     if (!keyFn) {
         return [...new Set(array)];
     }
@@ -153,7 +153,7 @@ function uniqueArray(array, keyFn = null) {
  * @param {string} text - Input text
  * @returns {string} - Slugified text
  */
-function slugify(text) {
+export function slugify(text) {
     return text
         .toString()
         .toLowerCase()
@@ -164,7 +164,7 @@ function slugify(text) {
         .replace(/\-\-+/g, '-');      // Replace multiple - with single -
 }
 
-module.exports = {
+export default {
     escapeHtml,
     convertValue,
     keyToEnvFormat,

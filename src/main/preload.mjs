@@ -1,20 +1,20 @@
-// src/main/preload.js
-// Preload script for Electron (secure bridge between renderer and main processes)
+// src/main/preload.mjs
+// Preload script for Electron (secure bridge between renderer and main processes) - ES Module Version
 
-const { contextBridge, ipcRenderer } = require('electron');
-const MarkdownIt = require('markdown-it');
-const hljs = require('highlight.js');
+import {contextBridge, ipcRenderer} from 'electron';
+import hljs from 'highlight.js';
+import MarkdownIt from 'markdown-it';
 
 /**
  * Initialize Markdown parser with syntax highlighting
  */
 const md = new MarkdownIt({
-    html: true,
-    xhtmlOut: true,
-    breaks: true,
-    linkify: true,
+    html       : true,
+    xhtmlOut   : true,
+    breaks     : true,
+    linkify    : true,
     typographer: true,
-    highlight: function (str, lang) {
+    highlight  : function (str, lang) {
         if (lang && hljs.getLanguage(lang)) {
             try {
                 return hljs.highlight(str, {language: lang}).value;
@@ -43,8 +43,8 @@ contextBridge.exposeInMainWorld('markdownAPI', {
  */
 contextBridge.exposeInMainWorld('electronAPI', {
     // Settings
-    getSettings: () => ipcRenderer.invoke('get-settings'),
-    saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+    getSettings  : () => ipcRenderer.invoke('get-settings'),
+    saveSettings : (settings) => ipcRenderer.invoke('save-settings', settings),
     resetSettings: () => ipcRenderer.invoke('reset-settings'),
 
     // LM Studio
@@ -55,9 +55,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // LLM model management
     getAvailableModels: () => ipcRenderer.invoke('get-available-models'),
-    loadModel: (modelPath) => ipcRenderer.invoke('load-model', modelPath),
-    downloadModel: (options) => ipcRenderer.invoke('download-model', options),
-    deleteModel: (modelName) => ipcRenderer.invoke('delete-model', modelName),
+    loadModel         : (modelPath) => ipcRenderer.invoke('load-model', modelPath),
+    downloadModel     : (options) => ipcRenderer.invoke('download-model', options),
+    deleteModel       : (modelName) => ipcRenderer.invoke('delete-model', modelName),
 
     // Event listeners
     onLMStudioStatus: (callback) => {
@@ -82,10 +82,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Manual status checks
     checkLMStudioManually: () => ipcRenderer.invoke('check-lm-studio'),
-    checkLMStudioStatus: () => ipcRenderer.invoke('check-lm-studio'),
+    checkLMStudioStatus  : () => ipcRenderer.invoke('check-lm-studio'),
 
     // UI event listeners
-    onShowSettings: (callback) => {
+    onShowSettings : (callback) => {
         ipcRenderer.on('show-settings', (_, config) => callback(config));
     },
     onSettingsReset: (callback) => {
@@ -101,15 +101,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     searchHuggingFaceModels: (query) => ipcRenderer.invoke('search-huggingface-models', query),
 
     // File and Git management
-    selectFolder: () => ipcRenderer.invoke('select-folder'),
-    addRepository: (options) => ipcRenderer.invoke('add-repository', options),
-    saveGitToken: (options) => ipcRenderer.invoke('save-git-token', options),
-    listFiles: (options) => ipcRenderer.invoke('list-files', options),
-    readFile: (options) => ipcRenderer.invoke('read-file', options),
-    searchFiles: (options) => ipcRenderer.invoke('search-files', options),
+    selectFolder  : () => ipcRenderer.invoke('select-folder'),
+    addRepository : (options) => ipcRenderer.invoke('add-repository', options),
+    saveGitToken  : (options) => ipcRenderer.invoke('save-git-token', options),
+    listFiles     : (options) => ipcRenderer.invoke('list-files', options),
+    readFile      : (options) => ipcRenderer.invoke('read-file', options),
+    searchFiles   : (options) => ipcRenderer.invoke('search-files', options),
     syncRepository: (options) => ipcRenderer.invoke('sync-repository', options),
-    removeSource: (options) => ipcRenderer.invoke('remove-source', options),
-    getAllSources: () => ipcRenderer.invoke('get-all-sources'),
+    removeSource  : (options) => ipcRenderer.invoke('remove-source', options),
+    getAllSources : () => ipcRenderer.invoke('get-all-sources'),
 
     // Processing status updates
     onProcessingStatus: (callback) => {
@@ -119,13 +119,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     // Chat history
-    getChatHistory: () => ipcRenderer.invoke('get-chat-history'),
-    getAllConversations: () => ipcRenderer.invoke('get-all-conversations'),
-    loadConversation: (options) => ipcRenderer.invoke('load-conversation', options),
-    deleteConversation: (options) => ipcRenderer.invoke('delete-conversation', options),
-    startNewConversation: () => ipcRenderer.invoke('start-new-conversation'),
+    getChatHistory       : () => ipcRenderer.invoke('get-chat-history'),
+    getAllConversations  : () => ipcRenderer.invoke('get-all-conversations'),
+    loadConversation     : (options) => ipcRenderer.invoke('load-conversation', options),
+    deleteConversation   : (options) => ipcRenderer.invoke('delete-conversation', options),
+    startNewConversation : () => ipcRenderer.invoke('start-new-conversation'),
     clearAllConversations: () => ipcRenderer.invoke('clear-all-conversations'),
 
     // Cancel current request
     cancelCurrentRequest: () => ipcRenderer.invoke('cancel-current-request'),
 });
+
+console.log(contextBridge)

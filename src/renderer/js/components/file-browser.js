@@ -3,22 +3,25 @@
 
 // State for file browser
 let currentBrowsingSource = null;
-let currentBrowsingPath = '';
-let browseHistory = [];
-let selectedFiles = [];
-let sources = { repositories: {}, folders: {} };
+let currentBrowsingPath   = '';
+let browseHistory         = [];
+let selectedFiles         = [];
+let sources               = {
+    repositories: {},
+    folders     : {}
+};
 
 /**
  * Initializes the file browser
  */
 function initFileBrowser() {
     // Elements
-    const fileBrowserModal = document.getElementById('file-browser-modal');
-    const fileBrowserBack = document.getElementById('file-browser-back');
-    const fileSearchInput = document.getElementById('file-search-input');
-    const fileSearchButton = document.getElementById('file-search-button');
-    const fileContentClose = document.getElementById('file-content-close');
-    const fileBrowserClose = document.getElementById('file-browser-close');
+    const fileBrowserModal      = document.getElementById('select-folder-button');
+    const fileBrowserBack       = document.getElementById('file-browser-back');
+    const fileSearchInput       = document.getElementById('file-search-input');
+    const fileSearchButton      = document.getElementById('file-search-button');
+    const fileContentClose      = document.getElementById('file-content-close');
+    const fileBrowserClose      = document.getElementById('file-browser-close');
     const fileBrowserSendToChat = document.getElementById('file-browser-send-to-chat');
 
     // Init event handlers if elements exist
@@ -76,7 +79,7 @@ async function loadSources() {
         if (result.success) {
             sources = {
                 repositories: result.repositories || {},
-                folders: result.folders || {}
+                folders     : result.folders || {}
             };
         } else {
             console.error('Error loading sources:', result.error);
@@ -100,12 +103,12 @@ async function openFileBrowser(sourceId, sourceType, sourceName) {
 
     // Reset state
     currentBrowsingSource = sourceId;
-    currentBrowsingPath = '';
-    browseHistory = [];
-    selectedFiles = [];
+    currentBrowsingPath   = '';
+    browseHistory         = [];
+    selectedFiles         = [];
 
     // Set modal title
-    const icon = sourceType === 'folder' ? 'fa-folder-open' : 'fa-code-branch';
+    const icon                 = sourceType === 'folder' ? 'fa-folder-open' : 'fa-code-branch';
     fileBrowserTitle.innerHTML = `<i class="fas ${icon} mr-2"></i> ${sourceName}`;
 
     // Open modal
@@ -170,10 +173,10 @@ function renderBreadcrumbs(path) {
     fileBrowserPath.innerHTML = '';
 
     // Root element
-    const rootItem = document.createElement('span');
-    rootItem.className = 'breadcrumb-item';
-    const rootLink = document.createElement('a');
-    rootLink.href = '#';
+    const rootItem       = document.createElement('span');
+    rootItem.className   = 'breadcrumb-item';
+    const rootLink       = document.createElement('a');
+    rootLink.href        = '#';
     rootLink.textContent = 'Root';
     rootLink.addEventListener('click', (e) => {
         e.preventDefault();
@@ -186,7 +189,7 @@ function renderBreadcrumbs(path) {
     if (!path) return;
 
     // Split path and create breadcrumb items
-    const segments = path.split('/');
+    const segments  = path.split('/');
     let currentPath = '';
 
     segments.forEach((segment, index) => {
@@ -195,7 +198,7 @@ function renderBreadcrumbs(path) {
         currentPath += (currentPath ? '/' : '') + segment;
         const isLast = index === segments.length - 1;
 
-        const item = document.createElement('span');
+        const item     = document.createElement('span');
         item.className = 'breadcrumb-item';
 
         if (isLast) {
@@ -203,8 +206,8 @@ function renderBreadcrumbs(path) {
             item.textContent = segment;
         } else {
             // Intermediate elements are links
-            const link = document.createElement('a');
-            link.href = '#';
+            const link       = document.createElement('a');
+            link.href        = '#';
             link.textContent = segment;
             const pathToHere = currentPath;
             link.addEventListener('click', (e) => {
@@ -235,11 +238,11 @@ function renderFileBrowserContent(data) {
 
     // Show directories first
     if (data.directories.length > 0) {
-        const dirContainer = document.createElement('div');
+        const dirContainer     = document.createElement('div');
         dirContainer.className = 'mb-2';
 
         data.directories.forEach(dir => {
-            const dirItem = document.createElement('div');
+            const dirItem     = document.createElement('div');
             dirItem.className = 'flex items-center p-2 hover:bg-gray-100 cursor-pointer';
             dirItem.innerHTML = `
         <i class="fas fa-folder text-yellow-500 mr-2"></i>
@@ -264,61 +267,61 @@ function renderFileBrowserContent(data) {
 
         // Add separator if directories exist
         if (data.directories.length > 0) {
-            const separator = document.createElement('div');
+            const separator     = document.createElement('div');
             separator.className = 'border-t border-gray-200 my-2';
             fileContainer.appendChild(separator);
         }
 
         data.files.forEach(file => {
-            const fileItem = document.createElement('div');
+            const fileItem     = document.createElement('div');
             fileItem.className = 'flex items-center justify-between p-2 hover:bg-gray-100';
 
             // Choose icon based on file type
-            let icon = 'fa-file';
+            let icon      = 'fa-file';
             let iconClass = 'text-gray-500';
 
             if (file.extension === '.js' || file.extension === '.jsx' || file.extension === '.ts') {
-                icon = 'fa-file-code';
+                icon      = 'fa-file-code';
                 iconClass = 'text-yellow-600';
             } else if (file.extension === '.html' || file.extension === '.htm' || file.extension === '.xml') {
-                icon = 'fa-file-code';
+                icon      = 'fa-file-code';
                 iconClass = 'text-orange-500';
             } else if (file.extension === '.css' || file.extension === '.scss' || file.extension === '.sass') {
-                icon = 'fa-file-code';
+                icon      = 'fa-file-code';
                 iconClass = 'text-blue-500';
             } else if (file.extension === '.json') {
-                icon = 'fa-file-code';
+                icon      = 'fa-file-code';
                 iconClass = 'text-green-600';
             } else if (file.extension === '.md') {
-                icon = 'fa-file-alt';
+                icon      = 'fa-file-alt';
                 iconClass = 'text-blue-600';
             } else if (['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp'].includes(file.extension)) {
-                icon = 'fa-file-image';
+                icon      = 'fa-file-image';
                 iconClass = 'text-purple-500';
             } else if (['.mp4', '.webm', '.avi', '.mov'].includes(file.extension)) {
-                icon = 'fa-file-video';
+                icon      = 'fa-file-video';
                 iconClass = 'text-red-500';
             } else if (['.mp3', '.wav', '.ogg'].includes(file.extension)) {
-                icon = 'fa-file-audio';
+                icon      = 'fa-file-audio';
                 iconClass = 'text-green-500';
             } else if (['.pdf'].includes(file.extension)) {
-                icon = 'fa-file-pdf';
+                icon      = 'fa-file-pdf';
                 iconClass = 'text-red-600';
             } else if (['.doc', '.docx'].includes(file.extension)) {
-                icon = 'fa-file-word';
+                icon      = 'fa-file-word';
                 iconClass = 'text-blue-600';
             } else if (['.xls', '.xlsx'].includes(file.extension)) {
-                icon = 'fa-file-excel';
+                icon      = 'fa-file-excel';
                 iconClass = 'text-green-600';
             } else if (['.ppt', '.pptx'].includes(file.extension)) {
-                icon = 'fa-file-powerpoint';
+                icon      = 'fa-file-powerpoint';
                 iconClass = 'text-orange-600';
             } else if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(file.extension)) {
-                icon = 'fa-file-archive';
+                icon      = 'fa-file-archive';
                 iconClass = 'text-amber-700';
             }
 
-            const nameElement = document.createElement('div');
+            const nameElement     = document.createElement('div');
             nameElement.className = 'flex items-center flex-1';
             nameElement.innerHTML = `
         <i class="fas ${icon} ${iconClass} mr-2"></i>
@@ -332,10 +335,10 @@ function renderFileBrowserContent(data) {
 
             // View button for text files
             if (isTextFile(file.extension)) {
-                const viewButton = document.createElement('button');
+                const viewButton     = document.createElement('button');
                 viewButton.className = 'text-blue-600 hover:text-blue-700 px-2';
                 viewButton.innerHTML = '<i class="fas fa-eye"></i>';
-                viewButton.title = 'View file';
+                viewButton.title     = 'View file';
 
                 viewButton.addEventListener('click', async () => {
                     await showFileContent(currentBrowsingSource, file.path);
@@ -345,10 +348,10 @@ function renderFileBrowserContent(data) {
             }
 
             // Add to selection button
-            const addButton = document.createElement('button');
+            const addButton     = document.createElement('button');
             addButton.className = 'text-green-600 hover:text-green-700 px-2';
             addButton.innerHTML = '<i class="fas fa-plus"></i>';
-            addButton.title = 'Add to selection';
+            addButton.title     = 'Add to selection';
 
             let isSelected = false;
 
@@ -358,8 +361,8 @@ function renderFileBrowserContent(data) {
                 if (isSelected) {
                     selectedFiles.push({
                         sourceId: currentBrowsingSource,
-                        path: file.path,
-                        name: file.name
+                        path    : file.path,
+                        name    : file.name
                     });
                     fileItem.classList.add('bg-blue-50');
                     addButton.innerHTML = '<i class="fas fa-check text-green-600"></i>';
@@ -391,13 +394,13 @@ function updateSendToChatButton() {
     if (!fileBrowserSendToChat) return;
 
     if (selectedFiles.length > 0) {
-        fileBrowserSendToChat.disabled = false;
+        fileBrowserSendToChat.disabled  = false;
         fileBrowserSendToChat.innerHTML = `
       <i class="fas fa-paper-plane mr-2"></i> ${selectedFiles.length} file(s) to chat
       <span class="selected-files-count">${selectedFiles.length}</span>
     `;
     } else {
-        fileBrowserSendToChat.disabled = true;
+        fileBrowserSendToChat.disabled  = true;
         fileBrowserSendToChat.innerHTML = `
       <i class="fas fa-paper-plane mr-2"></i> Send to chat
     `;
@@ -411,14 +414,14 @@ function updateSendToChatButton() {
  */
 async function showFileContent(sourceId, filePath) {
     const fileContentViewer = document.getElementById('file-content-viewer');
-    const fileContentPre = document.getElementById('file-content-pre');
-    const fileContentName = document.getElementById('file-content-name');
+    const fileContentPre    = document.getElementById('file-content-pre');
+    const fileContentName   = document.getElementById('file-content-name');
 
     if (!fileContentViewer || !fileContentPre || !fileContentName) return;
 
     try {
         fileContentViewer.classList.remove('hidden');
-        fileContentPre.innerHTML = '<div class="loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div></div>';
+        fileContentPre.innerHTML    = '<div class="loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div></div>';
         fileContentName.textContent = filePath.split('/').pop();
 
         const result = await window.electronAPI.readFile({
@@ -429,7 +432,7 @@ async function showFileContent(sourceId, filePath) {
         if (result.success) {
             // Syntax highlighting based on file extension
             const extension = result.extension.replace('.', '');
-            const language = getLanguageFromExtension(extension);
+            const language  = getLanguageFromExtension(extension);
 
             // Format content
             if (language) {
@@ -455,7 +458,7 @@ function formatFileSize(bytes) {
     if (bytes === 0) return '0 B';
 
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const i     = Math.floor(Math.log(bytes) / Math.log(1024));
 
     return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`;
 }
@@ -577,11 +580,11 @@ async function searchFiles(query) {
         const result = await window.electronAPI.searchFiles({
             sourceId: currentBrowsingSource,
             query,
-            options: {
-                maxResults: 50,
-                extensions: null, // All file types
+            options : {
+                maxResults   : 50,
+                extensions   : null, // All file types
                 includeBinary: false,
-                recursive: true
+                recursive    : true
             }
         });
 
@@ -614,7 +617,7 @@ function renderSearchResults(data) {
     }
 
     // Header for search results
-    const header = document.createElement('div');
+    const header     = document.createElement('div');
     header.className = 'mb-4';
     header.innerHTML = `
     <h3 class="text-lg font-medium">${data.results.length} results for "${data.query}"</h3>
@@ -623,25 +626,25 @@ function renderSearchResults(data) {
     fileBrowserContent.appendChild(header);
 
     // Results list
-    const resultsList = document.createElement('div');
+    const resultsList     = document.createElement('div');
     resultsList.className = 'space-y-2';
 
     data.results.forEach(result => {
-        const resultItem = document.createElement('div');
+        const resultItem     = document.createElement('div');
         resultItem.className = 'border rounded p-2 hover:bg-gray-50 cursor-pointer';
 
         // Choose icon by file type
-        let icon = 'fa-file';
+        let icon      = 'fa-file';
         let iconClass = 'text-gray-500';
 
         if (result.extension === '.js' || result.extension === '.jsx' || result.extension === '.ts') {
-            icon = 'fa-file-code';
+            icon      = 'fa-file-code';
             iconClass = 'text-yellow-600';
         } else if (result.extension === '.html' || result.extension === '.htm') {
-            icon = 'fa-file-code';
+            icon      = 'fa-file-code';
             iconClass = 'text-orange-500';
         } else if (result.extension === '.css' || result.extension === '.scss') {
-            icon = 'fa-file-code';
+            icon      = 'fa-file-code';
             iconClass = 'text-blue-500';
         }
 
@@ -695,8 +698,8 @@ function addFilesToChat() {
                     `${hint}\n${fileReferences}`;
 
                 // Adjust input height
-                userInput.style.height = 'auto';
-                userInput.style.height = Math.min(userInput.scrollHeight, 300) + 'px';
+                userInput.style.height    = 'auto';
+                userInput.style.height    = Math.min(userInput.scrollHeight, 300) + 'px';
                 userInput.style.overflowY = userInput.scrollHeight > 300 ? 'scroll' : 'hidden';
 
                 // Close modal

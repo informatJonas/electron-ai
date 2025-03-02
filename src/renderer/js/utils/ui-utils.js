@@ -8,7 +8,7 @@
  * @param {number} duration - Duration in milliseconds
  */
 function showNotification(message, type = 'success', duration = 3000) {
-    const container = document.getElementById('notification-container');
+    let container = document.getElementById('notification-container');
     if (!container) {
         // Create container if it doesn't exist
         const newContainer = document.createElement('div');

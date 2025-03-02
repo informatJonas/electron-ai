@@ -48,8 +48,8 @@ function renderModelsList(models, currentModel) {
 
         // Check if it's the currently loaded model
         if (model === currentModel) {
-            clone.querySelector('.model-info').textContent = 'Currently loaded';
-            clone.querySelector('.load-model-button').disabled = true;
+            clone.querySelector('.model-info').textContent        = 'Currently loaded';
+            clone.querySelector('.load-model-button').disabled    = true;
             clone.querySelector('.load-model-button').textContent = 'Loaded';
         } else {
             clone.querySelector('.model-info').textContent = 'Click "Load" to use this model';
@@ -100,7 +100,7 @@ async function deleteModel(model) {
     const confirmed = await window.uiUtils.confirmDialog(
         `Are you sure you want to delete the model "${model}"?`,
         {
-            title: 'Delete Model',
+            title    : 'Delete Model',
             dangerous: true
         }
     );
@@ -125,10 +125,10 @@ async function deleteModel(model) {
  * Initializes the Hugging Face model search
  */
 function initHuggingFaceSearch() {
-    const hfSearchInput = document.getElementById('hf-search-input');
-    const hfSearchButton = document.getElementById('hf-search-button');
+    const hfSearchInput   = document.getElementById('hf-search-input');
+    const hfSearchButton  = document.getElementById('hf-search-button');
     const hfSearchResults = document.getElementById('hf-search-results');
-    const hfLoading = document.getElementById('hf-loading');
+    const hfLoading       = document.getElementById('hf-loading');
 
     if (!hfSearchButton || !hfSearchInput) return;
 
@@ -192,23 +192,23 @@ function renderHuggingFaceModels(models) {
     hfSearchResults.innerHTML = '';
 
     // Show result count
-    const resultsCount = document.createElement('p');
-    resultsCount.className = 'text-sm text-gray-600 mb-3';
+    const resultsCount       = document.createElement('p');
+    resultsCount.className   = 'text-sm text-gray-600 mb-3';
     resultsCount.textContent = `${models.length} models found`;
     hfSearchResults.appendChild(resultsCount);
 
     models.forEach(model => {
         // Clone model template
         const template = document.getElementById('hf-model-template');
-        const clone = document.importNode(template.content, true);
+        const clone    = document.importNode(template.content, true);
 
         // Insert model details
-        clone.querySelector('.model-name').textContent = model.name;
-        clone.querySelector('.model-author').textContent = `by ${model.author}`;
+        clone.querySelector('.model-name').textContent      = model.name;
+        clone.querySelector('.model-author').textContent    = `by ${model.author}`;
         clone.querySelector('.model-downloads').textContent = model.downloads.toLocaleString();
 
         // Truncate description if too long
-        const description = model.description || 'No description available';
+        const description                                     = model.description || 'No description available';
         clone.querySelector('.model-description').textContent =
             description.length > 200 ? description.substring(0, 200) + '...' : description;
 
@@ -218,7 +218,7 @@ function renderHuggingFaceModels(models) {
         if (model.files && model.files.length > 0) {
             model.files.forEach(file => {
                 const fileTemplate = document.getElementById('hf-file-template');
-                const fileClone = document.importNode(fileTemplate.content, true);
+                const fileClone    = document.importNode(fileTemplate.content, true);
 
                 fileClone.querySelector('.file-name').textContent = file.name;
                 fileClone.querySelector('.file-size').textContent = file.sizeFormatted;
@@ -250,9 +250,9 @@ async function downloadHuggingFaceModel(url, filename) {
         const confirmed = await window.uiUtils.confirmDialog(
             `Do you want to download the file "${filename}"?`,
             {
-                title: 'Download Model',
+                title      : 'Download Model',
                 confirmText: 'Download',
-                dangerous: false
+                dangerous  : false
             }
         );
 
@@ -282,15 +282,15 @@ async function downloadHuggingFaceModel(url, filename) {
  * Initializes manual model download
  */
 function initManualDownload() {
-    const downloadModelButton = document.getElementById('download-model-button');
-    const modelDownloadUrl = document.getElementById('model-download-url');
-    const modelDownloadName = document.getElementById('model-download-name');
+    const downloadModelButton   = document.getElementById('download-model-button');
+    const modelDownloadUrl      = document.getElementById('model-download-url');
+    const modelDownloadName     = document.getElementById('model-download-name');
     const modelDownloadProgress = document.getElementById('model-download-progress');
 
     if (!downloadModelButton) return;
 
     downloadModelButton.addEventListener('click', async () => {
-        const url = modelDownloadUrl.value.trim();
+        const url  = modelDownloadUrl.value.trim();
         const name = modelDownloadName.value.trim();
 
         if (!url || !name) {
@@ -310,7 +310,7 @@ function initManualDownload() {
 
             if (result.success) {
                 window.uiUtils.showNotification(`Model "${name}" successfully downloaded`);
-                modelDownloadUrl.value = '';
+                modelDownloadUrl.value  = '';
                 modelDownloadName.value = '';
                 loadModelsList(); // Update list
             } else {
@@ -329,6 +329,8 @@ function initManualDownload() {
  * Initialize all model management components
  */
 function initModelManagement() {
+    console.log('hugging face is initializing');
+
     // Initialize Hugging Face search
     initHuggingFaceSearch();
 
@@ -343,10 +345,12 @@ function initModelManagement() {
     // Initialize LLM mode toggle
     const useLocalLlmToggle = document.getElementById('useLocalLlm');
     if (useLocalLlmToggle) {
-        useLocalLlmToggle.addEventListener('change', function() {
+        useLocalLlmToggle.addEventListener('change', function () {
             updateLLMMode(this.checked);
         });
     }
+
+    console.log('hugging face was initialized');
 }
 
 /**
@@ -354,7 +358,7 @@ function initModelManagement() {
  * @param {boolean} useLocalLlm - Whether to use local LLM
  */
 function updateLLMMode(useLocalLlm) {
-    const llmModeText = document.getElementById('llm-mode-text');
+    const llmModeText      = document.getElementById('llm-mode-text');
     const localLlmSettings = document.getElementById('local-llm-settings');
     const lmStudioSettings = document.getElementById('lm-studio-settings');
 

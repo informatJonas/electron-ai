@@ -1,15 +1,15 @@
 // src/main/utils/file-utils.js
-// File operation utilities
+// File operation utilities - ES Module Version
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Ensures the specified directory exists, creating it if necessary
  * @param {string} dirPath - Path to the directory
  * @returns {boolean} - True if directory exists or was created
  */
-function ensureDirectoryExists(dirPath) {
+export function ensureDirectoryExists(dirPath) {
     try {
         if (!fs.existsSync(dirPath)) {
             fs.mkdirSync(dirPath, { recursive: true });
@@ -25,7 +25,7 @@ function ensureDirectoryExists(dirPath) {
  * Deletes a directory recursively
  * @param {string} folderPath - Path to the directory
  */
-function deleteRecursive(folderPath) {
+export function deleteRecursive(folderPath) {
     if (fs.existsSync(folderPath)) {
         fs.readdirSync(folderPath).forEach((file) => {
             const curPath = path.join(folderPath, file);
@@ -46,7 +46,7 @@ function deleteRecursive(folderPath) {
  * @param {string} extension - File extension (including the dot)
  * @returns {boolean} - True if the file is likely a text file
  */
-function isTextFile(extension) {
+export function isTextFile(extension) {
     const textExtensions = [
         '.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.sass',
         '.html', '.htm', '.xml', '.svg', '.c', '.cpp', '.h', '.cs', '.java', '.py',
@@ -63,7 +63,7 @@ function isTextFile(extension) {
  * @param {number} bytes - Size in bytes
  * @returns {string} - Formatted size (e.g. "1.5 MB")
  */
-function formatFileSize(bytes) {
+export function formatFileSize(bytes) {
     if (bytes === 0) return '0 B';
 
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -77,7 +77,7 @@ function formatFileSize(bytes) {
  * @param {string} extension - File extension (without the dot)
  * @returns {string} - Language identifier for highlight.js or empty string
  */
-function getLanguageFromExtension(extension) {
+export function getLanguageFromExtension(extension) {
     const languageMap = {
         'js'   : 'javascript',
         'jsx'  : 'javascript',
@@ -119,8 +119,10 @@ function getLanguageFromExtension(extension) {
  * @param {string} extension - File extension (including dot)
  * @returns {string} - Path to the temporary file
  */
-function createTempFile(content, extension = '.txt') {
-    const tempDir = path.join(require('os').tmpdir(), 'ki-assistant');
+export function createTempFile(content, extension = '.txt') {
+    const tempDir = path.join(process.platform === 'win32'
+        ? process.env.TEMP || process.env.TMP
+        : '/tmp', 'ki-assistant');
     ensureDirectoryExists(tempDir);
 
     const tempFile = path.join(tempDir, `temp_${Date.now()}${extension}`);
@@ -135,7 +137,7 @@ function createTempFile(content, extension = '.txt') {
  * @param {string} encoding - File encoding
  * @returns {string|Buffer} - File content
  */
-function readFile(filePath, encoding = 'utf8') {
+export function readFile(filePath, encoding = 'utf8') {
     try {
         return fs.readFileSync(filePath, encoding);
     } catch (error) {
@@ -150,7 +152,7 @@ function readFile(filePath, encoding = 'utf8') {
  * @param {string|Buffer} content - Content to write
  * @returns {boolean} - True if write successful
  */
-function writeFile(filePath, content) {
+export function writeFile(filePath, content) {
     try {
         // Ensure the directory exists
         const directory = path.dirname(filePath);
@@ -165,7 +167,7 @@ function writeFile(filePath, content) {
     }
 }
 
-module.exports = {
+export default {
     ensureDirectoryExists,
     deleteRecursive,
     isTextFile,

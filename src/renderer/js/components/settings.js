@@ -8,6 +8,7 @@ async function openSettings() {
     try {
         // Load current settings
         const config = await window.electronAPI.getSettings();
+
         updateSettingsForm(config);
 
         // Show modal
@@ -62,7 +63,7 @@ async function saveSettings() {
         const settings = getSettingsFromForm();
 
         // Save previous LLM mode to detect changes
-        const previousConfig = await window.electronAPI.getSettings();
+        const previousConfig      = await window.electronAPI.getSettings();
         const previousUseLocalLlm = previousConfig.useLocalLlm;
 
         // Save settings
@@ -106,7 +107,7 @@ async function resetSettings() {
         const confirmed = await window.uiUtils.confirmDialog(
             'Do you want to reset all settings to their default values?',
             {
-                title: 'Reset Settings',
+                title    : 'Reset Settings',
                 dangerous: true
             }
         );
@@ -137,22 +138,22 @@ async function resetSettings() {
  */
 function getSettingsFromForm() {
     const settings = {
-        lmStudioUrl: getInputValue('lmStudioUrl'),
-        lmStudioModel: getInputValue('lmStudioModel'),
-        serverPort: getIntValue('serverPort', 65535),
-        maxSearchResults: getIntValue('maxSearchResults', 3),
-        searchTimeout: getIntValue('searchTimeout', 5000),
+        lmStudioUrl      : getInputValue('lmStudioUrl'),
+        lmStudioModel    : getInputValue('lmStudioModel'),
+        serverPort       : getIntValue('serverPort', 65535),
+        maxSearchResults : getIntValue('maxSearchResults', 3),
+        searchTimeout    : getIntValue('searchTimeout', 5000),
         autoCheckLmStudio: getCheckboxValue('autoCheckLMStudio'),
-        debugMode: getCheckboxValue('debugMode'),
-        systemPrompt: getInputValue('systemPrompt'),
-        minimizeToTray: getCheckboxValue('minimizeToTray'),
-        startWithWindows: getCheckboxValue('startWithWindows'),
-        checkForUpdates: getCheckboxValue('checkForUpdates'),
+        debugMode        : getCheckboxValue('debugMode'),
+        systemPrompt     : getInputValue('systemPrompt'),
+        minimizeToTray   : getCheckboxValue('minimizeToTray'),
+        startWithWindows : getCheckboxValue('startWithWindows'),
+        checkForUpdates  : getCheckboxValue('checkForUpdates'),
         defaultSearchMode: getSelectValue('defaultSearchMode'),
 
         // Chat history settings
         maxHistoryMessages: getIntValue('max-history-messages', 20),
-        maxConversations: getIntValue('max-conversations', 10),
+        maxConversations  : getIntValue('max-conversations', 10),
     };
 
     // LLM settings
@@ -272,7 +273,7 @@ function initSettings() {
     });
 
     // Add token service change handler
-    const tokenServiceSelect = document.getElementById('token-service');
+    const tokenServiceSelect    = document.getElementById('token-service');
     const customDomainContainer = document.getElementById('custom-domain-container');
 
     if (tokenServiceSelect && customDomainContainer) {

@@ -1,20 +1,25 @@
 // src/main/main.js
-// Main entry point for the Electron application
+// Main entry point for the Electron application (ES Module Version)
 
-const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, shell } = require('electron');
-const path = require('path');
+import {app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray} from 'electron';
+import path from 'path';
+import {fileURLToPath} from 'url';
+import createExpressServer from './api/express-server.js';
+// Dynamically import modules
+import configManager from './config/config-manager.js';
+import LLMEngine from './llm/llm-engine.js';
+import * as lmStudioConnector from './llm/lm-studio-connector.js'
+import ChatHistoryManager from './services/chat-history.js';
+import GitConnector from './services/git-connector.js';
+import * as searchModule from './services/search.js';
+import {ensureDirectoryExists} from './utils/file-utils.js';
 
-// Import services and utilities
-const configManager = require('./config/config-manager');
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+
+// Config
 const config = configManager.getConfig();
-const LLMEngine = require('./llm/llm-engine');
-const createExpressServer = require('./api/express-server');
-const GitConnector = require('./services/git-connector');
-const ChatHistoryManager = require('./services/chat-history');
-const { ensureDirectoryExists } = require('./utils/file-utils');
-
-// Dynamic imports (handled as needed)
-let searchModule, lmStudioConnector;
 
 // Global references
 let mainWindow;
@@ -30,15 +35,9 @@ let expressServer;
  * Initializes all services and modules
  */
 async function initializeServices() {
+    console.log('Initializing Services');
+
     try {
-        // Dynamically import modules
-        const searchModuleImport = await import('./services/search.js');
-        const lmStudioConnectorImport = await import('./llm/lm-studio-connector.js');
-
-        // Assign imported modules
-        searchModule = searchModuleImport;
-        lmStudioConnector = lmStudioConnectorImport;
-
         // Configure paths
         const dataPath = app.getPath('userData');
         ensureDirectoryExists(dataPath);
@@ -52,7 +51,7 @@ async function initializeServices() {
         // Initialize Chat history manager
         chatHistoryManager = new ChatHistoryManager({
             maxHistoryMessages: config.maxHistoryMessages,
-            maxConversations: config.maxConversations
+            maxConversations  : config.maxConversations
         });
         console.log('ChatHistoryManager initialized');
 
@@ -99,7 +98,7 @@ async function loadModel(modelPath) {
         // Update UI status
         if (mainWindow) {
             mainWindow.webContents.send('model-status', {
-                status: 'loading',
+                status : 'loading',
                 message: `Loading model: ${modelPath}`
             });
         }
@@ -107,8 +106,8 @@ async function loadModel(modelPath) {
         // Load model
         const success = await llmEngine.loadModel(modelPath, {
             contextSize: config.contextSize || 2048,
-            threads: config.threads || 4,
-            gpuLayers: config.gpuLayers || 0
+            threads    : config.threads || 4,
+            gpuLayers  : config.gpuLayers || 0
         });
 
         if (success) {
@@ -120,9 +119,9 @@ async function loadModel(modelPath) {
             // Update UI status
             if (mainWindow) {
                 mainWindow.webContents.send('model-status', {
-                    status: 'loaded',
+                    status : 'loaded',
                     message: `Model loaded: ${modelPath}`,
-                    model: modelPath
+                    model  : modelPath
                 });
             }
 
@@ -136,7 +135,7 @@ async function loadModel(modelPath) {
         // Update UI status
         if (mainWindow) {
             mainWindow.webContents.send('model-status', {
-                status: 'error',
+                status : 'error',
                 message: `Error loading model: ${error.message}`
             });
         }
@@ -158,21 +157,27 @@ async function createWindow() {
         return;
     }
 
+    console.log([
+        app.getPath('home'),
+        app.getPath('logs'),
+        app.getPath('temp'),
+        app.getPath('desktop'),
+        app.getPath('module'),
+    ])
     // Create browser window
     mainWindow = new BrowserWindow({
-        width: 1000,
-        height: 800,
-        minWidth: 800,
-        minHeight: 600,
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
-            nodeIntegration: true,
-            enableRemoteModules: true,
+        width          : 1000,
+        height         : 800,
+        minWidth       : 800,
+        minHeight      : 600,
+        webPreferences : {
+            preload: path.join(__dirname, 'preload.mjs'),
+            //contextIsolation: true,
+            nodeIntegration: true
         },
-        icon: path.join(__dirname, '../../assets/icons/icon.png'),
-        title: 'KI-Assistant',
-        show: false, // Only show when loaded
+        icon           : path.join(__dirname, '../../assets/icons/icon.png'),
+        title          : 'KI-Assistant',
+        show           : false, // Only show when loaded
         backgroundColor: '#f8fafc'
     });
 
@@ -182,27 +187,26 @@ async function createWindow() {
         mainWindow,
         llmEngine,
         chatHistoryManager,
-        duckDuckGoSearch: searchModule.duckDuckGoSearch,
-        fetchWebContent: searchModule.fetchWebContent,
+        duckDuckGoSearch   : searchModule.duckDuckGoSearch,
+        fetchWebContent    : searchModule.fetchWebContent,
         checkLMStudioStatus: lmStudioConnector.checkLMStudioStatus,
         gitConnector
     });
 
     // Start Express server
     const serverPort = config.serverPort;
-    server = await expressServer.startServer(serverPort);
+    server           = await expressServer.startServer(serverPort);
 
     // Load app from Express server
-    await mainWindow.loadURL(`http://localhost:${serverPort}/html/index.html`);
+    mainWindow.loadFile(`src/renderer/html/index.html`);
 
     // Show window when ready
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
+        //mainWindow.webContents.openDevTools();
 
         // Check LM Studio connection or LLM status
-        if (config.useLocalLlm) {
-            // LLM Engine is already initialized in initializeServices
-        } else {
+        if (!config.useLocalLlm) {
             checkLMStudioConnection();
         }
     });
@@ -237,7 +241,7 @@ async function createWindow() {
     // Set up auto-startup
     app.setLoginItemSettings({
         openAtLogin: config.startWithWindows,
-        path: app.getPath('exe')
+        path       : app.getPath('exe')
     });
 }
 
@@ -247,7 +251,7 @@ async function createWindow() {
 function createMenu() {
     const template = [
         {
-            label: 'File',
+            label  : 'File',
             submenu: [
                 {
                     label: 'Settings',
@@ -260,9 +264,9 @@ function createMenu() {
                 },
                 {type: 'separator'},
                 {
-                    label: 'Open LM Studio',
+                    label  : 'Open LM Studio',
                     visible: !config.useLocalLlm,
-                    click: openLMStudio
+                    click  : openLMStudio
                 },
                 {type: 'separator'},
                 {
@@ -272,7 +276,7 @@ function createMenu() {
             ]
         },
         {
-            label: 'Edit',
+            label  : 'Edit',
             submenu: [
                 {role: 'undo'},
                 {role: 'redo'},
@@ -283,7 +287,7 @@ function createMenu() {
             ]
         },
         {
-            label: 'View',
+            label  : 'View',
             submenu: [
                 {role: 'reload'},
                 {role: 'forceReload'},
@@ -296,7 +300,7 @@ function createMenu() {
             ]
         },
         {
-            label: 'Tools',
+            label  : 'Tools',
             submenu: [
                 {
                     label: 'Developer Tools',
@@ -311,7 +315,7 @@ function createMenu() {
             ]
         },
         {
-            label: 'Help',
+            label  : 'Help',
             submenu: [
                 {
                     label: 'About',
@@ -342,14 +346,14 @@ function createTray() {
         },
         {type: 'separator'},
         {
-            label: 'Open LM Studio',
+            label  : 'Open LM Studio',
             visible: !config.useLocalLlm,
-            click: openLMStudio
+            click  : openLMStudio
         },
         {
-            label: 'Manage Models',
+            label  : 'Manage Models',
             visible: config.useLocalLlm,
-            click: showModels
+            click  : showModels
         },
         {type: 'separator'},
         {
@@ -397,7 +401,7 @@ async function checkLMStudioConnection() {
         console.log('MAIN: Status check result:', status);
 
         const statusMessage = {
-            status: status ? 'connected' : 'disconnected',
+            status : status ? 'connected' : 'disconnected',
             message: status
                 ? 'Connected to LM Studio'
                 : 'LM Studio not reachable'
@@ -425,15 +429,15 @@ async function checkConnectionStatus() {
                 // Send model status
                 if (mainWindow) {
                     mainWindow.webContents.send('model-status', {
-                        status: 'loaded',
+                        status : 'loaded',
                         message: `Model loaded: ${modelResult.currentModel}`,
-                        model: modelResult.currentModel
+                        model  : modelResult.currentModel
                     });
                 }
             } else {
                 if (mainWindow) {
                     mainWindow.webContents.send('model-status', {
-                        status: 'error',
+                        status : 'error',
                         message: 'No model loaded'
                     });
                 }
@@ -446,7 +450,7 @@ async function checkConnectionStatus() {
         console.error('Error checking status:', error);
         if (mainWindow) {
             mainWindow.webContents.send('model-status', {
-                status: 'error',
+                status : 'error',
                 message: 'Connection problem'
             });
         }
@@ -469,20 +473,20 @@ function openLMStudio() {
             .then(result => {
                 if (result) {
                     dialog.showMessageBox(mainWindow, {
-                        type: 'error',
-                        title: 'Error',
+                        type   : 'error',
+                        title  : 'Error',
                         message: `Could not open LM Studio: ${result}`,
-                        detail: 'Please ensure LM Studio is installed.',
+                        detail : 'Please ensure LM Studio is installed.',
                         buttons: ['OK']
                     });
                 }
             });
     } catch (error) {
         dialog.showMessageBox(mainWindow, {
-            type: 'error',
-            title: 'Error',
+            type   : 'error',
+            title  : 'Error',
             message: 'Could not open LM Studio',
-            detail: 'Please ensure LM Studio is installed.',
+            detail : 'Please ensure LM Studio is installed.',
             buttons: ['OK']
         });
     }
@@ -511,9 +515,9 @@ function showModels() {
  */
 function resetSettings() {
     const response = dialog.showMessageBoxSync(mainWindow, {
-        type: 'question',
+        type   : 'question',
         buttons: ['Yes', 'No'],
-        title: 'Reset Settings',
+        title  : 'Reset Settings',
         message: 'Do you want to reset all settings to their default values?'
     });
 
@@ -522,8 +526,8 @@ function resetSettings() {
         mainWindow.webContents.send('settings-reset', newConfig);
 
         dialog.showMessageBox(mainWindow, {
-            type: 'info',
-            title: 'Settings Reset',
+            type   : 'info',
+            title  : 'Settings Reset',
             message: 'All settings have been reset to their default values.',
             buttons: ['OK']
         });
@@ -535,10 +539,10 @@ function resetSettings() {
  */
 function showAbout() {
     dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'About KI-Assistant',
+        type   : 'info',
+        title  : 'About KI-Assistant',
         message: 'KI-Assistant',
-        detail: 'Version 2.0.0\n\nA desktop application with integrated LLM and web search.\n\nDeveloped with Electron and Node.js.',
+        detail : 'Version 2.0.0\n\nA desktop application with integrated LLM and web search.\n\nDeveloped with Electron and Node.js.',
         buttons: ['OK']
     });
 }
@@ -612,9 +616,9 @@ async function getHistoryHandler() {
         if (!chatHistoryManager) return {success: false, error: 'ChatHistoryManager not initialized'};
 
         return {
-            success: true,
+            success         : true,
             currentSessionId: chatHistoryManager.currentSessionId,
-            messages: chatHistoryManager.getCurrentHistory()
+            messages        : chatHistoryManager.getCurrentHistory()
         };
     } catch (error) {
         console.error('Error getting chat history:', error);
@@ -827,7 +831,7 @@ async function downloadModelHandler(event, {url, modelName}) {
 
         // Update UI status
         mainWindow.webContents.send('model-status', {
-            status: 'downloading',
+            status : 'downloading',
             message: `Downloading model: ${modelName}`
         });
 
@@ -835,7 +839,7 @@ async function downloadModelHandler(event, {url, modelName}) {
 
         // Update UI status
         mainWindow.webContents.send('model-status', {
-            status: 'downloaded',
+            status : 'downloaded',
             message: `Model downloaded: ${modelName}`
         });
 
@@ -845,7 +849,7 @@ async function downloadModelHandler(event, {url, modelName}) {
 
         // Update UI status
         mainWindow.webContents.send('model-status', {
-            status: 'error',
+            status : 'error',
             message: `Error downloading model: ${error.message}`
         });
 
@@ -863,7 +867,7 @@ async function deleteModelHandler(event, modelName) {
 
         // Update UI status
         mainWindow.webContents.send('model-status', {
-            status: 'deleted',
+            status : 'deleted',
             message: `Model deleted: ${modelName}`
         });
 
@@ -880,7 +884,7 @@ async function searchHuggingFaceModelsHandler(event, query) {
 
         // Dynamically import huggingface module
         const huggingFace = await import('./llm/huggingface.js');
-        const models = await huggingFace.searchModels(query);
+        const models      = await huggingFace.searchModels(query);
 
         return {success: true, models};
     } catch (error) {
@@ -934,13 +938,13 @@ async function addRepositoryHandler(event, {url, branch, name}) {
 
         // Add repository
         const repoId = gitConnector.addRepository({
-            name: name || repoInfo.name,
+            name        : name || repoInfo.name,
             url,
-            branch: branch || 'main',
-            type: repoInfo.type,
+            branch      : branch || 'main',
+            type        : repoInfo.type,
             customDomain: repoInfo.customDomain,
-            baseUrl: repoInfo.baseUrl,
-            isPrivate: repoInfo.isPrivate
+            baseUrl     : repoInfo.baseUrl,
+            isPrivate   : repoInfo.isPrivate
         });
 
         // Sync repository
@@ -1020,7 +1024,7 @@ async function removeSourceHandler(event, {sourceId}) {
 async function getAllSourcesHandler() {
     try {
         const repositories = gitConnector.getAllRepositories();
-        const folders = gitConnector.getAllFolders();
+        const folders      = gitConnector.getAllFolders();
 
         return {
             success: true,
@@ -1045,7 +1049,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
+        createWindow().then();
     }
 });
 
@@ -1054,7 +1058,7 @@ app.on('before-quit', () => {
     stopServer();
 });
 
-// For CommonJS compatibility
-module.exports = {
+// Export for import in other modules
+export default {
     app
 };

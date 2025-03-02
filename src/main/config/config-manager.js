@@ -1,12 +1,12 @@
 // src/main/config/config-manager.js
-// Configuration management module
+// Configuration management module - ES Module Version
 
-const path = require('path');
-const fs = require('fs');
-const dotenv = require('dotenv');
-const Store = require('electron-store');
-const { app } = require('electron');
-const { convertValue, keyToEnvFormat, keyToCamelCase } = require('../utils/string-utils');
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import Store from 'electron-store';
+import { app } from 'electron';
+import { convertValue, keyToEnvFormat, keyToCamelCase } from '../utils/string-utils.js';
 
 /**
  * Determine if we're in development mode
@@ -279,4 +279,4 @@ function resetToDefaults() {
     return getConfig();
 }
 
-module.exports = initEnvironment();
+export default initEnvironment();

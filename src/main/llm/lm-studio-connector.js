@@ -1,27 +1,23 @@
 // src/main/llm/lm-studio-connector.js
-// Module for LM Studio API integration
+// Module for LM Studio API integration - ES Module Version
 
-const { createApiClient } = require('../utils/http-utils');
+import { createApiClient } from '../utils/http-utils.js';
 
 /**
  * Checks if LM Studio API is reachable
  * @param {string} baseUrl - Base URL of the LM Studio API server (e.g. http://localhost:1234/)
  * @returns {Promise<boolean>} - true if reachable, false otherwise
  */
-async function checkLMStudioStatus(baseUrl) {
+export async function checkLMStudioStatus(baseUrl) {
     console.log('Starting LM Studio status check for URL:', baseUrl);
 
     try {
         let url = baseUrl;
-        // Replace localhost with 127.0.0.1 for better reliability
         if (url.includes('localhost')) {
             url = url.replace('localhost', '127.0.0.1');
         }
 
-        // Create API client with base URL
         const api = createApiClient(url);
-
-        // Check models endpoint
         const modelsEndpoint = 'v1/models';
         console.log('Checking URL:', `${url}${modelsEndpoint}`);
 
@@ -36,8 +32,6 @@ async function checkLMStudioStatus(baseUrl) {
         return !!response;
     } catch (error) {
         console.error('Error connecting to LM Studio:', error.message);
-
-        // Detailed error logging
         if (error.response) {
             console.log('Response status:', error.response.status);
             console.log('Response data:', error.response.data);
@@ -46,7 +40,6 @@ async function checkLMStudioStatus(baseUrl) {
         } else {
             console.log('Request error:', error.message);
         }
-
         return false;
     }
 }
@@ -56,27 +49,19 @@ async function checkLMStudioStatus(baseUrl) {
  * @param {string} baseUrl - Base URL of the LM Studio API server
  * @returns {Promise<Array>} - Array of available models
  */
-async function getAvailableModels(baseUrl) {
+export async function getAvailableModels(baseUrl) {
     try {
-        // Use IPv4 address explicitly
         let url = baseUrl;
         if (url.includes('localhost')) {
             url = url.replace('localhost', '127.0.0.1');
         }
 
-        // Create API client
         const api = createApiClient(url);
-
-        // Query models
         const response = await api.get('v1/models', {
             timeout: 5000
         });
 
-        if (response && response.data) {
-            return response.data;
-        }
-
-        return [];
+        return response?.data || [];
     } catch (error) {
         console.error('Error getting models:', error.message);
         return [];
@@ -90,23 +75,19 @@ async function getAvailableModels(baseUrl) {
  * @param {Object} data - Data to send
  * @returns {Promise<Object>} - Response from LM Studio
  */
-async function sendRequest(baseUrl, endpoint, data) {
+export async function sendRequest(baseUrl, endpoint, data) {
     try {
-        // Use IPv4 address explicitly
         let url = baseUrl;
         if (url.includes('localhost')) {
             url = url.replace('localhost', '127.0.0.1');
         }
 
-        // Create API client
         const api = createApiClient(url);
-
-        // Send request
         const response = await api.post(endpoint, data, {
             headers: {
                 'Content-Type': 'application/json'
             },
-            timeout: 30000 // 30 seconds timeout
+            timeout: 30000
         });
 
         return response;
@@ -124,9 +105,8 @@ async function sendRequest(baseUrl, endpoint, data) {
  * @param {AbortSignal} signal - Abort signal
  * @returns {Promise<ReadableStream>} - Stream of responses
  */
-async function createChatCompletionStream(baseUrl, messages, options = {}, signal = null) {
+export async function createChatCompletionStream(baseUrl, messages, options = {}, signal = null) {
     try {
-        // Use IPv4 address explicitly
         let url = baseUrl;
         if (url.includes('localhost')) {
             url = url.replace('localhost', '127.0.0.1');
@@ -134,7 +114,6 @@ async function createChatCompletionStream(baseUrl, messages, options = {}, signa
 
         url = `${url.endsWith('/') ? url.slice(0, -1) : url}/v1/chat/completions`;
 
-        // Create request options
         const requestOptions = {
             method: 'POST',
             headers: {
@@ -150,7 +129,6 @@ async function createChatCompletionStream(baseUrl, messages, options = {}, signa
             signal
         };
 
-        // Send request
         const response = await fetch(url, requestOptions);
 
         if (!response.ok) {
@@ -163,10 +141,3 @@ async function createChatCompletionStream(baseUrl, messages, options = {}, signa
         throw error;
     }
 }
-
-module.exports = {
-    checkLMStudioStatus,
-    getAvailableModels,
-    sendRequest,
-    createChatCompletionStream
-};

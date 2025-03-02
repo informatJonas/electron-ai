@@ -1,27 +1,28 @@
 // src/main/llm/llm-engine.js
-// Module for LLM integration using node-llama-cpp
+// Module for LLM integration using node-llama-cpp - ES Module Version
 
-const path = require('path');
-const fs = require('fs');
-const { app } = require('electron');
-const AdmZip = require('adm-zip');
-const { ensureDirectoryExists } = require('../utils/file-utils');
+import AdmZip from 'adm-zip';
+import {app} from 'electron';
+import fs from 'fs';
+import {getLlama, LlamaChatSession} from "node-llama-cpp";
+import path from 'path';
+import {ensureDirectoryExists} from '../utils/file-utils.js';
 
 /**
  * LLM Engine class for handling local AI models
  */
-class LLMEngine {
+export default class LLMEngine {
     /**
      * Creates a new LLM Engine instance
      * @param {Object} config - Configuration options
      */
     constructor(config) {
-        this.config = config;
-        this.model = null;
-        this.context = null;
-        this.llama = null;
+        this.config        = config;
+        this.model         = null;
+        this.context       = null;
+        this.llama         = null;
         this.isInitialized = false;
-        this.currentModel = null;
+        this.currentModel  = null;
 
         // Ensure models directory exists
         this.modelsDir = path.join(app.getPath('userData'), config.modelDir || 'models');
@@ -37,10 +38,9 @@ class LLMEngine {
      */
     async initializeLlama() {
         try {
-            const llamaModule = await import('node-llama-cpp');
-            this.llama = {
-                getLlama: llamaModule.getLlama,
-                LlamaChatSession: llamaModule.LlamaChatSession
+            this.llama         = {
+                getLlama        : getLlama,
+                LlamaChatSession: LlamaChatSession
             };
             this.isInitialized = true;
         } catch (error) {
@@ -85,7 +85,7 @@ class LLMEngine {
             // Merge default options with provided options
             const modelOptions = {
                 modelPath: fullModelPath,
-                threads: options.threads || this.config.threads || 4,
+                threads  : options.threads || this.config.threads || 4,
                 gpuLayers: 'auto',
                 ...options
             };
@@ -97,18 +97,16 @@ class LLMEngine {
                     await this.context.dispose();
                 }
                 await this.model.dispose();
-                this.model = null;
+                this.model   = null;
                 this.context = null;
             }
 
             // Load Llama and initialize model
             const llama = await this.llama.getLlama();
-            this.model = await llama.loadModel(modelOptions);
+            this.model  = await llama.loadModel(modelOptions);
 
             // Create context
-            this.context = await this.model.createContext({
-                contextSize: options.contextSize || this.config.contextSize || 2048
-            });
+            this.context = await this.model.createContext();
 
             // Save current model name
             this.currentModel = modelPath;
@@ -142,8 +140,8 @@ class LLMEngine {
             // Options for generation
             const inferenceOptions = {
                 temperature: options.temperature || 0.7,
-                maxTokens: options.maxTokens || 1024,
-                topP: options.topP || 0.95,
+                maxTokens  : options.maxTokens || 1024,
+                topP       : options.topP || 0.95,
                 ...options
             };
 
@@ -164,11 +162,11 @@ class LLMEngine {
             // Create a chat session
             const session = new this.llama.LlamaChatSession({
                 contextSequence: this.context.getSequence() ?? await this.model.createContext(),
-                systemPrompt: this.config.systemPrompt
+                systemPrompt   : this.config.systemPrompt
             });
 
             let fullResponse = '';
-            const model = this.model;
+            const model      = this.model;
 
             // Handle abort signal
             if (options.signal) {
@@ -253,13 +251,13 @@ class LLMEngine {
             }
 
             // Download with electron-dl (dynamically loaded)
-            const { download } = await import('electron-dl');
-            const dl = await download(window, url, {
-                directory: this.modelsDir,
-                filename: modelName,
+            const {download} = await import('electron-dl');
+            const dl         = await download(window, url, {
+                directory : this.modelsDir,
+                filename  : modelName,
                 onProgress: (progress) => {
                     window.webContents.send('model-download-progress', {
-                        text: `Downloading ${modelName}...`,
+                        text    : `Downloading ${modelName}...`,
                         progress: progress.percent * 100
                     });
                 }
@@ -274,7 +272,7 @@ class LLMEngine {
                 console.log('Extracting ZIP file...');
 
                 window.webContents.send('model-download-progress', {
-                    text: 'Extracting model...',
+                    text    : 'Extracting model...',
                     progress: 99
                 });
 
@@ -288,7 +286,7 @@ class LLMEngine {
             }
 
             window.webContents.send('model-download-progress', {
-                text: 'Download completed',
+                text    : 'Download completed',
                 progress: 100
             });
 
@@ -318,8 +316,8 @@ class LLMEngine {
                     await this.context.dispose();
                 }
                 await this.model.dispose();
-                this.model = null;
-                this.context = null;
+                this.model        = null;
+                this.context      = null;
                 this.currentModel = null;
             }
 
@@ -334,5 +332,3 @@ class LLMEngine {
         }
     }
 }
-
-module.exports = LLMEngine;

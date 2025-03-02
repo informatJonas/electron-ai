@@ -1,20 +1,20 @@
 // src/main/services/git-connector.js
-// Module for Git repository and local folder integration
+// Module for Git repository and local folder integration - ES Module Version
 
-const axios = require('axios');
-const path = require('path');
-const fs = require('fs');
-const { promisify } = require('util');
-const { exec } = require('child_process');
+import axios from 'axios';
+import path from 'path';
+import fs from 'fs';
+import { promisify } from 'util';
+import { exec } from 'child_process';
 const execAsync = promisify(exec);
 
-const { ensureDirectoryExists, deleteRecursive } = require('../utils/file-utils');
-const { isValidUrl } = require('../utils/string-utils');
+import { ensureDirectoryExists, deleteRecursive } from '../utils/file-utils.js';
+import { isValidUrl } from '../utils/string-utils.js';
 
 /**
  * Class for repository management
  */
-class GitConnector {
+export default class GitConnector {
     /**
      * Creates a new GitConnector instance
      * @param {Object} config - Configuration options
@@ -716,5 +716,3 @@ class GitConnector {
         }
     }
 }
-
-module.exports = GitConnector;

@@ -1,567 +1,565 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KI-Assistant</title>
-  <!-- Tailwind CSS via CDN -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css" rel="stylesheet">
-  <!-- Font Awesome für Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <!-- Base styling -->
-  <link rel="stylesheet" href="../css/styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KI-Assistant</title>
+    <!-- Tailwind CSS via CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Font Awesome für Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Base styling -->
+    <link rel="stylesheet" href="../css/styles.css">
 </head>
 <body class="bg-gray-50 text-gray-800">
 <div class="container flex flex-col h-screen w-full max-w-full m-0 p-0">
-  <header class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center shadow-md">
-    <h1 class="text-xl font-semibold flex items-center gap-2">
-      <i class="fas fa-robot"></i> KI-Assistant
-    </h1>
-    <div class="flex items-center gap-3 text-sm">
-      <!-- Web search dropdown -->
-      <div class="flex items-center gap-2">
-        <label for="webSearchMode" class="text-sm">Web-Suche:</label>
-        <select id="webSearchMode" class="bg-transparent text-white text-sm border border-blue-400 px-2 py-1 focus:outline-none">
-          <option value="auto" class="text-black">Auto</option>
-          <option value="always" class="text-black">Immer</option>
-          <option value="never" class="text-black">Nie</option>
-        </select>
-      </div>
-      <button id="settingsButton" class="settings-button">
-        <i class="fas fa-cog"></i>
-      </button>
-    </div>
-  </header>
-
-  <div class="chat-container">
-    <div id="chat-messages" class="chat-messages">
-      <div class="message assistant">
-        <div class="message-content">
-          <p>Hallo! Ich bin dein KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?</p>
-          <p class="tip">Tipp: Im "Auto"-Modus entscheide ich selbst, wann eine Web-Suche sinnvoll ist. Du kannst auch "lokal:" voranstellen, um sicherzustellen, dass keine Suche erfolgt.</p>
+    <header class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <h1 class="text-xl font-semibold flex items-center gap-2">
+            <i class="fas fa-robot"></i> KI-Assistant
+        </h1>
+        <div class="flex items-center gap-3 text-sm">
+            <!-- Web search dropdown -->
+            <div class="flex items-center gap-2">
+                <label for="webSearchMode" class="text-sm">Web-Suche:</label>
+                <select id="webSearchMode" class="bg-transparent text-white text-sm border border-blue-400 px-2 py-1 focus:outline-none">
+                    <option value="auto" class="text-black">Auto</option>
+                    <option value="always" class="text-black">Immer</option>
+                    <option value="never" class="text-black">Nie</option>
+                </select>
+            </div>
+            <button id="settingsButton" class="settings-button">
+                <i class="fas fa-cog"></i>
+            </button>
         </div>
-      </div>
-    </div>
+    </header>
 
-    <div class="chat-input-container">
+    <div class="chat-container">
+        <div id="chat-messages" class="chat-messages">
+            <div class="message assistant">
+                <div class="message-content">
+                    <p>Hallo! Ich bin dein KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?</p>
+                    <p class="tip">Tipp: Im "Auto"-Modus entscheide ich selbst, wann eine Web-Suche sinnvoll ist. Du kannst auch "lokal:" voranstellen, um sicherzustellen, dass keine Suche erfolgt.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
         <textarea
                 id="user-input"
                 placeholder="Schreibe deine Frage hier..."
                 rows="2"
                 autofocus
         ></textarea>
-      <button id="send-button" class="send-button">
-        <i class="fas fa-paper-plane"></i>
-      </button>
+            <button id="send-button" class="send-button">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
     </div>
-  </div>
 
-  <div id="status-indicator" class="status">
-    <div class="status-dot offline"></div>
-    <span>Verbindung wird aufgebaut...</span>
-  </div>
+    <div id="status-indicator" class="status">
+        <div class="status-dot offline"></div>
+        <span>Verbindung wird aufgebaut...</span>
+    </div>
 </div>
 
 <!-- Settings Modal -->
 <div id="settings-modal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2><i class="fas fa-cog"></i> Einstellungen</h2>
-      <span class="close">&times;</span>
-    </div>
-    <div class="modal-body">
-      <div class="settings-tabs">
-        <div class="tab-header">
-          <button class="tab-button active" data-tab="general">Allgemein</button>
-          <button class="tab-button" data-tab="connection">Verbindung</button>
-          <button class="tab-button" data-tab="search">Websuche</button>
-          <button class="tab-button" data-tab="models">Modelle</button>
-          <button class="tab-button" data-tab="repositories">Quellcode</button>
-          <button class="tab-button" data-tab="advanced">Erweitert</button>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-cog"></i> Einstellungen</h2>
+            <span class="close">&times;</span>
         </div>
-
-        <div class="tab-content">
-          <!-- General settings -->
-          <div class="tab-pane active" id="general-tab">
-            <div class="form-group">
-              <label for="systemPrompt">System-Prompt:</label>
-              <textarea id="systemPrompt" rows="5"></textarea>
-              <small class="form-hint">Dieser Text wird bei jeder Anfrage als Anweisung an das Modell gesendet.</small>
-            </div>
-
-            <div class="form-group">
-              <label class="checkbox-container">
-                Im System-Tray minimieren
-                <input type="checkbox" id="minimizeToTray">
-                <span class="checkmark"></span>
-              </label>
-              <small class="form-hint">Die App wird in den System-Tray minimiert statt geschlossen.</small>
-            </div>
-
-            <div class="form-group">
-              <label class="checkbox-container">
-                Mit Windows starten
-                <input type="checkbox" id="startWithWindows">
-                <span class="checkmark"></span>
-              </label>
-              <small class="form-hint">Startet die App automatisch beim Windows-Start.</small>
-            </div>
-
-            <div class="form-group mt-4">
-              <h3 class="text-lg font-medium">Chat-Historie</h3>
-              <div class="grid grid-cols-2 gap-4 mt-2">
-                <div>
-                  <label for="max-history-messages">Max. Nachrichten pro Konversation:</label>
-                  <input type="number" id="max-history-messages" class="w-full p-2 border border-gray-300 rounded" min="5" max="100" value="20">
-                  <small class="form-hint">Anzahl der Nachrichten, die pro Konversation gespeichert werden.</small>
-                </div>
-                <div>
-                  <label for="max-conversations">Max. gespeicherte Konversationen:</label>
-                  <input type="number" id="max-conversations" class="w-full p-2 border border-gray-300 rounded" min="1" max="50" value="10">
-                  <small class="form-hint">Anzahl der Konversationen, die insgesamt gespeichert werden.</small>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Connection settings -->
-          <div class="tab-pane" id="connection-tab">
-            <div class="form-group">
-              <label for="lmStudioUrl">LM Studio API URL:</label>
-              <input type="text" id="lmStudioUrl">
-              <small class="form-hint">Die URL des LM Studio API-Servers.</small>
-            </div>
-
-            <div class="form-group">
-              <label for="lmStudioModel">Modellname:</label>
-              <input type="text" id="lmStudioModel">
-              <small class="form-hint">Name des Modells in LM Studio. Standardmäßig "local-model".</small>
-            </div>
-
-            <div class="form-group">
-              <label for="serverPort">Server-Port:</label>
-              <input type="number" id="serverPort" min="1024" max="65535">
-              <small class="form-hint">Port des internen Servers. Neustart erforderlich.</small>
-            </div>
-
-            <div class="form-group">
-              <label class="checkbox-container">
-                Automatisch LM Studio-Verbindung prüfen
-                <input type="checkbox" id="autoCheckLMStudio">
-                <span class="checkmark"></span>
-              </label>
-              <small class="form-hint">Prüft regelmäßig die Verbindung zu LM Studio.</small>
-            </div>
-          </div>
-
-          <!-- Web search settings -->
-          <div class="tab-pane" id="search-tab">
-            <div class="form-group">
-              <label for="maxSearchResults">Maximale Suchergebnisse:</label>
-              <input type="number" id="maxSearchResults" min="1" max="10">
-              <small class="form-hint">Anzahl der Suchergebnisse pro Anfrage.</small>
-            </div>
-
-            <div class="form-group">
-              <label for="searchTimeout">Timeout (ms):</label>
-              <input type="number" id="searchTimeout" min="1000" max="15000" step="1000">
-              <small class="form-hint">Maximale Wartezeit für Suchanfragen in Millisekunden.</small>
-            </div>
-
-            <div class="form-group">
-              <label for="defaultSearchMode">Standard-Suchmodus:</label>
-              <select id="defaultSearchMode" class="block w-full p-2 border border-gray-300 rounded">
-                <option value="auto">Auto (KI entscheidet)</option>
-                <option value="always">Immer suchen</option>
-                <option value="never">Nie suchen</option>
-              </select>
-              <small class="form-hint">Der Standardmodus für die Websuche beim Start der App.</small>
-            </div>
-          </div>
-
-          <!-- Model settings -->
-          <div class="tab-pane" id="models-tab">
-            <div class="form-group">
-              <div class="flex justify-between items-center">
-                <h3 class="text-lg font-medium">LLM-Modus</h3>
-                <label class="switch">
-                  <input type="checkbox" id="useLocalLlm">
-                  <span class="slider round"></span>
-                </label>
-              </div>
-              <div class="flex mt-2">
-                <span id="llm-mode-text" class="text-sm text-gray-600">Lokales LLM verwenden</span>
-              </div>
-            </div>
-
-            <div id="local-llm-settings" class="mt-4">
-              <div class="form-group">
-                <h3 class="text-lg font-medium">Verfügbare Modelle</h3>
-                <div id="models-list" class="mt-4">
-                  <p>Lade Modelle...</p>
-                </div>
-              </div>
-
-              <div class="form-group mt-4">
-                <h3 class="text-lg font-medium">Hugging Face Modelle suchen</h3>
-                <div class="flex mt-2">
-                  <input type="text" id="hf-search-input" placeholder="GGUF-Modell suchen (z.B. 'mistral 7b')" class="w-full p-2 border border-gray-300 rounded-l">
-                  <button id="hf-search-button" class="primary-button rounded-l-none">Suchen</button>
-                </div>
-                <div id="hf-search-results" class="mt-4 max-h-96 overflow-y-auto">
-                  <p class="text-gray-500">Suche nach Modellen auf Hugging Face...</p>
-                </div>
-                <div id="hf-loading" class="mt-2 hidden">
-                  <div class="flex items-center">
-                    <div class="loading">
-                      <div class="loading-dot"></div>
-                      <div class="loading-dot"></div>
-                      <div class="loading-dot"></div>
-                    </div>
-                    <span class="ml-2 text-gray-600">Suche läuft...</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-group mt-4">
-                <h3 class="text-lg font-medium">Modell herunterladen</h3>
-                <div class="grid grid-cols-2 gap-4 mt-2">
-                  <div>
-                    <label for="model-download-url">Download URL:</label>
-                    <input type="text" id="model-download-url" class="w-full p-2 border border-gray-300 rounded" placeholder="URL zur Modelldatei">
-                  </div>
-                  <div>
-                    <label for="model-download-name">Name:</label>
-                    <input type="text" id="model-download-name" class="w-full p-2 border border-gray-300 rounded" placeholder="Name des Modells">
-                  </div>
-                </div>
-                <div class="mt-2">
-                  <button id="download-model-button" class="primary-button">Modell herunterladen</button>
-                </div>
-                <div id="model-download-progress" class="mt-2 hidden">
-                  <progress id="model-progress-bar" max="100" value="0" class="w-full"></progress>
-                  <p id="model-progress-text" class="text-sm text-gray-600">Initialisiere...</p>
-                </div>
-              </div>
-
-              <div class="form-group mt-4">
-                <h3 class="text-lg font-medium">Modelleinstellungen</h3>
-                <div class="grid grid-cols-2 gap-4 mt-2">
-                  <div>
-                    <label for="context-size">Kontextgröße:</label>
-                    <input type="number" id="context-size" class="w-full p-2 border border-gray-300 rounded" min="512" max="32768" step="512" value="2048">
-                    <small class="form-hint">Anzahl der Token im Kontext (größer = mehr Speicher)</small>
-                  </div>
-                  <div>
-                    <label for="cpu-threads">CPU-Threads:</label>
-                    <input type="number" id="cpu-threads" class="w-full p-2 border border-gray-300 rounded" min="1" max="32" value="4">
-                    <small class="form-hint">Anzahl der CPU-Threads für Inferenz</small>
-                  </div>
-                </div>
-                <div class="mt-2">
-                  <label for="gpu-layers">GPU-Layer:</label>
-                  <input type="number" id="gpu-layers" class="w-full p-2 border border-gray-300 rounded" min="0" max="128" value="0">
-                  <small class="form-hint">Anzahl der GPU-beschleunigten Layer (0 = nur CPU)</small>
-                </div>
-              </div>
-            </div>
-
-            <div id="lm-studio-settings" class="mt-4 hidden">
-              <div class="form-group">
-                <p class="text-gray-600">Um LM Studio zu verwenden, gehe zum "Verbindung"-Tab und konfiguriere die LM Studio-Einstellungen.</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Folder/Git settings -->
-          <div class="tab-pane" id="repositories-tab">
-            <div class="grid grid-cols-1 gap-4">
-              <!-- Local folders section -->
-              <div class="border rounded p-4">
-                <h3 class="text-lg font-medium mb-4">Lokale Ordner</h3>
-
-                <div class="mb-4">
-                  <button id="select-folder-button" class="primary-button">
-                    <i class="fas fa-folder-open mr-2"></i> Ordner auswählen
-                  </button>
-                  <small class="form-hint">Wähle einen lokalen Ordner aus, um dessen Inhalt mit dem Assistant zu teilen.</small>
+        <div class="modal-body">
+            <div class="settings-tabs">
+                <div class="tab-header">
+                    <button class="tab-button active" data-tab="general">Allgemein</button>
+                    <button class="tab-button" data-tab="connection">Verbindung</button>
+                    <button class="tab-button" data-tab="search">Websuche</button>
+                    <button class="tab-button" data-tab="models">Modelle</button>
+                    <button class="tab-button" data-tab="repositories">Quellcode</button>
+                    <button class="tab-button" data-tab="advanced">Erweitert</button>
                 </div>
 
-                <div id="folders-list" class="mt-4 max-h-48 overflow-y-auto">
-                  <p class="text-gray-500">Keine Ordner freigegeben</p>
-                </div>
-              </div>
+                <div class="tab-content">
+                    <!-- General settings -->
+                    <div class="tab-pane active" id="general-tab">
+                        <div class="form-group">
+                            <label for="systemPrompt">System-Prompt:</label>
+                            <textarea id="systemPrompt" rows="5"></textarea>
+                            <small class="form-hint">Dieser Text wird bei jeder Anfrage als Anweisung an das Modell gesendet.</small>
+                        </div>
 
-              <!-- Git repositories section -->
-              <div class="border rounded p-4">
-                <h3 class="text-lg font-medium mb-4">Git-Repositories</h3>
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Im System-Tray minimieren
+                                <input type="checkbox" id="minimizeToTray">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Die App wird in den System-Tray minimiert statt geschlossen.</small>
+                        </div>
 
-                <div class="mb-4">
-                  <div class="grid grid-cols-1 gap-2">
-                    <div class="form-group">
-                      <label for="repo-url">Repository URL:</label>
-                      <input type="text" id="repo-url" class="w-full p-2 border border-gray-300 rounded"
-                             placeholder="https://github.com/username/repo.git">
-                    </div>
-                    <div class="form-group">
-                      <label for="repo-branch">Branch (optional):</label>
-                      <input type="text" id="repo-branch" class="w-full p-2 border border-gray-300 rounded"
-                             placeholder="main">
-                    </div>
-                    <div class="form-group">
-                      <button id="add-repository-button" class="primary-button">
-                        <i class="fas fa-code-branch mr-2"></i> Repository hinzufügen
-                      </button>
-                    </div>
-                  </div>
-                  <small class="form-hint">Unterstützt GitHub, GitLab und andere Git-Repositories (inkl. selbst-gehostete Instanzen).</small>
-                </div>
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Mit Windows starten
+                                <input type="checkbox" id="startWithWindows">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Startet die App automatisch beim Windows-Start.</small>
+                        </div>
 
-                <div id="repositories-list" class="mt-4 max-h-64 overflow-y-auto">
-                  <p class="text-gray-500">Keine Repositories freigegeben</p>
-                </div>
-              </div>
-
-              <!-- Git authentication -->
-              <div class="border rounded p-4">
-                <h3 class="text-lg font-medium mb-4">Git-Authentifizierung</h3>
-
-                <div class="mb-4">
-                  <p class="text-sm text-gray-600 mb-2">Für private Repositories musst du ein persönliches Zugriffstoken hinzufügen:</p>
-
-                  <div class="grid grid-cols-1 gap-2">
-                    <div class="form-group">
-                      <label for="token-service">Git-Service:</label>
-                      <select id="token-service" class="w-full p-2 border border-gray-300 rounded">
-                        <option value="github">GitHub</option>
-                        <option value="gitlab">GitLab</option>
-                        <option value="custom">Benutzerdefiniert</option>
-                      </select>
+                        <div class="form-group mt-4">
+                            <h3 class="text-lg font-medium">Chat-Historie</h3>
+                            <div class="grid grid-cols-2 gap-4 mt-2">
+                                <div>
+                                    <label for="max-history-messages">Max. Nachrichten pro Konversation:</label>
+                                    <input type="number" id="max-history-messages" class="w-full p-2 border border-gray-300 rounded" min="5" max="100" value="20">
+                                    <small class="form-hint">Anzahl der Nachrichten, die pro Konversation gespeichert werden.</small>
+                                </div>
+                                <div>
+                                    <label for="max-conversations">Max. gespeicherte Konversationen:</label>
+                                    <input type="number" id="max-conversations" class="w-full p-2 border border-gray-300 rounded" min="1" max="50" value="10">
+                                    <small class="form-hint">Anzahl der Konversationen, die insgesamt gespeichert werden.</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div id="custom-domain-container" class="form-group hidden">
-                      <label for="token-domain">Benutzerdefinierte Domain:</label>
-                      <input type="text" id="token-domain" class="w-full p-2 border border-gray-300 rounded"
-                             placeholder="z.B. git.example.com">
+                    <!-- Connection settings -->
+                    <div class="tab-pane" id="connection-tab">
+                        <div class="form-group">
+                            <label for="lmStudioUrl">LM Studio API URL:</label>
+                            <input type="text" id="lmStudioUrl">
+                            <small class="form-hint">Die URL des LM Studio API-Servers.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="lmStudioModel">Modellname:</label>
+                            <input type="text" id="lmStudioModel">
+                            <small class="form-hint">Name des Modells in LM Studio. Standardmäßig "local-model".</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serverPort">Server-Port:</label>
+                            <input type="number" id="serverPort" min="1024" max="65535">
+                            <small class="form-hint">Port des internen Servers. Neustart erforderlich.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Automatisch LM Studio-Verbindung prüfen
+                                <input type="checkbox" id="autoCheckLMStudio">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Prüft regelmäßig die Verbindung zu LM Studio.</small>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                      <label for="token-value">Persönliches Zugriffstoken:</label>
-                      <input type="password" id="token-value" class="w-full p-2 border border-gray-300 rounded">
+                    <!-- Web search settings -->
+                    <div class="tab-pane" id="search-tab">
+                        <div class="form-group">
+                            <label for="maxSearchResults">Maximale Suchergebnisse:</label>
+                            <input type="number" id="maxSearchResults" min="1" max="10">
+                            <small class="form-hint">Anzahl der Suchergebnisse pro Anfrage.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="searchTimeout">Timeout (ms):</label>
+                            <input type="number" id="searchTimeout" min="1000" max="15000" step="1000">
+                            <small class="form-hint">Maximale Wartezeit für Suchanfragen in Millisekunden.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="defaultSearchMode">Standard-Suchmodus:</label>
+                            <select id="defaultSearchMode" class="block w-full p-2 border border-gray-300 rounded">
+                                <option value="auto">Auto (KI entscheidet)</option>
+                                <option value="always">Immer suchen</option>
+                                <option value="never">Nie suchen</option>
+                            </select>
+                            <small class="form-hint">Der Standardmodus für die Websuche beim Start der App.</small>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                      <button id="save-token-button" class="primary-button">
-                        <i class="fas fa-key mr-2"></i> Token speichern
-                      </button>
-                    </div>
-                  </div>
+                    <!-- Model settings -->
+                    <div class="tab-pane" id="models-tab">
+                        <div class="form-group">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-lg font-medium">LLM-Modus</h3>
+                                <label class="switch">
+                                    <input type="checkbox" id="useLocalLlm">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div class="flex mt-2">
+                                <span id="llm-mode-text" class="text-sm text-gray-600">Lokales LLM verwenden</span>
+                            </div>
+                        </div>
 
-                  <small class="form-hint">
-                    Die Tokens werden verschlüsselt auf deinem Computer gespeichert.
-                    <br>
-                    <a href="#" id="github-token-help">Anleitung: GitHub-Token erstellen</a> |
-                    <a href="#" id="gitlab-token-help">Anleitung: GitLab-Token erstellen</a>
-                  </small>
+                        <div id="local-llm-settings" class="mt-4">
+                            <div class="form-group">
+                                <h3 class="text-lg font-medium">Verfügbare Modelle</h3>
+                                <div id="models-list" class="mt-4">
+                                    <p>Lade Modelle...</p>
+                                </div>
+                            </div>
+
+                            <div class="form-group mt-4">
+                                <h3 class="text-lg font-medium">Hugging Face Modelle suchen</h3>
+                                <div class="flex mt-2">
+                                    <input type="text" id="hf-search-input" placeholder="GGUF-Modell suchen (z.B. 'mistral 7b')" class="w-full p-2 border border-gray-300 rounded-l">
+                                    <button id="hf-search-button" class="primary-button rounded-l-none">Suchen</button>
+                                </div>
+                                <div id="hf-search-results" class="mt-4 max-h-96 overflow-y-auto">
+                                    <p class="text-gray-500">Suche nach Modellen auf Hugging Face...</p>
+                                </div>
+                                <div id="hf-loading" class="mt-2 hidden">
+                                    <div class="flex items-center">
+                                        <div class="loading">
+                                            <div class="loading-dot"></div>
+                                            <div class="loading-dot"></div>
+                                            <div class="loading-dot"></div>
+                                        </div>
+                                        <span class="ml-2 text-gray-600">Suche läuft...</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group mt-4">
+                                <h3 class="text-lg font-medium">Modell herunterladen</h3>
+                                <div class="grid grid-cols-2 gap-4 mt-2">
+                                    <div>
+                                        <label for="model-download-url">Download URL:</label>
+                                        <input type="text" id="model-download-url" class="w-full p-2 border border-gray-300 rounded" placeholder="URL zur Modelldatei">
+                                    </div>
+                                    <div>
+                                        <label for="model-download-name">Name:</label>
+                                        <input type="text" id="model-download-name" class="w-full p-2 border border-gray-300 rounded" placeholder="Name des Modells">
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button id="download-model-button" class="primary-button">Modell herunterladen</button>
+                                </div>
+                                <div id="model-download-progress" class="mt-2 hidden">
+                                    <progress id="model-progress-bar" max="100" value="0" class="w-full"></progress>
+                                    <p id="model-progress-text" class="text-sm text-gray-600">Initialisiere...</p>
+                                </div>
+                            </div>
+
+                            <div class="form-group mt-4">
+                                <h3 class="text-lg font-medium">Modelleinstellungen</h3>
+                                <div class="grid grid-cols-2 gap-4 mt-2">
+                                    <div>
+                                        <label for="context-size">Kontextgröße:</label>
+                                        <input type="number" id="context-size" class="w-full p-2 border border-gray-300 rounded" min="512" max="32768" step="512" value="2048">
+                                        <small class="form-hint">Anzahl der Token im Kontext (größer = mehr Speicher)</small>
+                                    </div>
+                                    <div>
+                                        <label for="cpu-threads">CPU-Threads:</label>
+                                        <input type="number" id="cpu-threads" class="w-full p-2 border border-gray-300 rounded" min="1" max="32" value="4">
+                                        <small class="form-hint">Anzahl der CPU-Threads für Inferenz</small>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <label for="gpu-layers">GPU-Layer:</label>
+                                    <input type="number" id="gpu-layers" class="w-full p-2 border border-gray-300 rounded" min="0" max="128" value="0">
+                                    <small class="form-hint">Anzahl der GPU-beschleunigten Layer (0 = nur CPU)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="lm-studio-settings" class="mt-4 hidden">
+                            <div class="form-group">
+                                <p class="text-gray-600">Um LM Studio zu verwenden, gehe zum "Verbindung"-Tab und konfiguriere die LM Studio-Einstellungen.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Folder/Git settings -->
+                    <div class="tab-pane" id="repositories-tab">
+                        <div class="grid grid-cols-1 gap-4">
+                            <!-- Local folders section -->
+                            <div class="border rounded p-4">
+                                <h3 class="text-lg font-medium mb-4">Lokale Ordner</h3>
+
+                                <div class="mb-4">
+                                    <button id="select-folder-button" class="primary-button">
+                                        <i class="fas fa-folder-open mr-2"></i> Ordner auswählen
+                                    </button>
+                                    <small class="form-hint">Wähle einen lokalen Ordner aus, um dessen Inhalt mit dem Assistant zu teilen.</small>
+                                </div>
+
+                                <div id="folders-list" class="mt-4 max-h-48 overflow-y-auto">
+                                    <p class="text-gray-500">Keine Ordner freigegeben</p>
+                                </div>
+                            </div>
+
+                            <!-- Git repositories section -->
+                            <div class="border rounded p-4">
+                                <h3 class="text-lg font-medium mb-4">Git-Repositories</h3>
+
+                                <div class="mb-4">
+                                    <div class="grid grid-cols-1 gap-2">
+                                        <div class="form-group">
+                                            <label for="repo-url">Repository URL:</label>
+                                            <input type="text" id="repo-url" class="w-full p-2 border border-gray-300 rounded"
+                                                   placeholder="https://github.com/username/repo.git">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="repo-branch">Branch (optional):</label>
+                                            <input type="text" id="repo-branch" class="w-full p-2 border border-gray-300 rounded"
+                                                   placeholder="main">
+                                        </div>
+                                        <div class="form-group">
+                                            <button id="add-repository-button" class="primary-button">
+                                                <i class="fas fa-code-branch mr-2"></i> Repository hinzufügen
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="form-hint">Unterstützt GitHub, GitLab und andere Git-Repositories (inkl. selbst-gehostete Instanzen).</small>
+                                </div>
+
+                                <div id="repositories-list" class="mt-4 max-h-64 overflow-y-auto">
+                                    <p class="text-gray-500">Keine Repositories freigegeben</p>
+                                </div>
+                            </div>
+
+                            <!-- Git authentication -->
+                            <div class="border rounded p-4">
+                                <h3 class="text-lg font-medium mb-4">Git-Authentifizierung</h3>
+
+                                <div class="mb-4">
+                                    <p class="text-sm text-gray-600 mb-2">Für private Repositories musst du ein persönliches Zugriffstoken hinzufügen:</p>
+
+                                    <div class="grid grid-cols-1 gap-2">
+                                        <div class="form-group">
+                                            <label for="token-service">Git-Service:</label>
+                                            <select id="token-service" class="w-full p-2 border border-gray-300 rounded">
+                                                <option value="github">GitHub</option>
+                                                <option value="gitlab">GitLab</option>
+                                                <option value="custom">Benutzerdefiniert</option>
+                                            </select>
+                                        </div>
+
+                                        <div id="custom-domain-container" class="form-group hidden">
+                                            <label for="token-domain">Benutzerdefinierte Domain:</label>
+                                            <input type="text" id="token-domain" class="w-full p-2 border border-gray-300 rounded"
+                                                   placeholder="z.B. git.example.com">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="token-value">Persönliches Zugriffstoken:</label>
+                                            <input type="password" id="token-value" class="w-full p-2 border border-gray-300 rounded">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <button id="save-token-button" class="primary-button">
+                                                <i class="fas fa-key mr-2"></i> Token speichern
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <small class="form-hint">
+                                        Die Tokens werden verschlüsselt auf deinem Computer gespeichert.
+                                        <br>
+                                        <a href="#" id="github-token-help">Anleitung: GitHub-Token erstellen</a> |
+                                        <a href="#" id="gitlab-token-help">Anleitung: GitLab-Token erstellen</a>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced settings -->
+                    <div class="tab-pane" id="advanced-tab">
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Debug-Modus
+                                <input type="checkbox" id="debugMode">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Zeigt zusätzliche Debug-Informationen in der Konsole an.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-container">
+                                Nach Updates suchen
+                                <input type="checkbox" id="checkForUpdates">
+                                <span class="checkmark"></span>
+                            </label>
+                            <small class="form-hint">Prüft automatisch auf neue Versionen.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <button id="reset-settings" class="danger-button">Auf Standardwerte zurücksetzen</button>
+                            <small class="form-hint">Setzt alle Einstellungen auf die Standardwerte zurück.</small>
+                        </div>
+                    </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Advanced settings -->
-          <div class="tab-pane" id="advanced-tab">
-            <div class="form-group">
-              <label class="checkbox-container">
-                Debug-Modus
-                <input type="checkbox" id="debugMode">
-                <span class="checkmark"></span>
-              </label>
-              <small class="form-hint">Zeigt zusätzliche Debug-Informationen in der Konsole an.</small>
             </div>
 
-            <div class="form-group">
-              <label class="checkbox-container">
-                Nach Updates suchen
-                <input type="checkbox" id="checkForUpdates">
-                <span class="checkmark"></span>
-              </label>
-              <small class="form-hint">Prüft automatisch auf neue Versionen.</small>
+            <div class="form-actions">
+                <button id="save-settings" class="primary-button">Speichern</button>
+                <button id="cancel-settings" class="secondary-button">Abbrechen</button>
             </div>
-
-            <div class="form-group">
-              <button id="reset-settings" class="danger-button">Auf Standardwerte zurücksetzen</button>
-              <small class="form-hint">Setzt alle Einstellungen auf die Standardwerte zurück.</small>
-            </div>
-          </div>
         </div>
-      </div>
-
-      <div class="form-actions">
-        <button id="save-settings" class="primary-button">Speichern</button>
-        <button id="cancel-settings" class="secondary-button">Abbrechen</button>
-      </div>
     </div>
-  </div>
 </div>
 
 <!-- Template for model items -->
 <template id="model-item-template">
-  <div class="model-item border rounded p-3 mb-2 flex justify-between items-center">
-    <div>
-      <div class="model-name font-medium"></div>
-      <div class="model-info text-sm text-gray-600"></div>
+    <div class="model-item border rounded p-3 mb-2 flex justify-between items-center">
+        <div>
+            <div class="model-name font-medium"></div>
+            <div class="model-info text-sm text-gray-600"></div>
+        </div>
+        <div class="flex gap-2">
+            <button class="load-model-button primary-button">Laden</button>
+            <button class="delete-model-button danger-button">Löschen</button>
+        </div>
     </div>
-    <div class="flex gap-2">
-      <button class="load-model-button primary-button">Laden</button>
-      <button class="delete-model-button danger-button">Löschen</button>
-    </div>
-  </div>
 </template>
 
 <!-- Template for Hugging Face search results -->
 <template id="hf-model-template">
-  <div class="hf-model border rounded p-4 mb-3">
-    <div class="flex justify-between items-start">
-      <div>
-        <h4 class="font-bold text-lg model-name"></h4>
-        <p class="text-sm text-gray-600 model-author"></p>
-      </div>
-      <div class="text-sm text-gray-500">
-        <span class="model-downloads"></span> Downloads
-      </div>
+    <div class="hf-model border rounded p-4 mb-3">
+        <div class="flex justify-between items-start">
+            <div>
+                <h4 class="font-bold text-lg model-name"></h4>
+                <p class="text-sm text-gray-600 model-author"></p>
+            </div>
+            <div class="text-sm text-gray-500">
+                <span class="model-downloads"></span> Downloads
+            </div>
+        </div>
+        <p class="my-2 model-description text-sm"></p>
+        <div class="model-files mt-3">
+            <h5 class="font-medium mb-1">Verfügbare GGUF-Dateien:</h5>
+            <div class="file-list space-y-1"></div>
+        </div>
     </div>
-    <p class="my-2 model-description text-sm"></p>
-    <div class="model-files mt-3">
-      <h5 class="font-medium mb-1">Verfügbare GGUF-Dateien:</h5>
-      <div class="file-list space-y-1"></div>
-    </div>
-  </div>
 </template>
 
 <template id="hf-file-template">
-  <div class="file-item flex justify-between items-center bg-gray-50 p-2 rounded">
-    <div>
-      <span class="file-name font-mono text-sm"></span>
-      <span class="text-gray-500 text-xs ml-2 file-size"></span>
+    <div class="file-item flex justify-between items-center bg-gray-50 p-2 rounded">
+        <div>
+            <span class="file-name font-mono text-sm"></span>
+            <span class="text-gray-500 text-xs ml-2 file-size"></span>
+        </div>
+        <button class="secondary-button download-file-button text-sm py-1 px-2">
+            <i class="fas fa-download mr-1"></i> Herunterladen
+        </button>
     </div>
-    <button class="secondary-button download-file-button text-sm py-1 px-2">
-      <i class="fas fa-download mr-1"></i> Herunterladen
-    </button>
-  </div>
 </template>
 
 <!-- Template for repository items -->
 <template id="repository-item-template">
-  <div class="repository-item border rounded p-3 mb-2">
-    <div class="flex justify-between items-center">
-      <div>
-        <div class="repo-name font-medium flex items-center">
-          <i class="fas fa-code-branch mr-2"></i> <span class="repo-name-text"></span>
+    <div class="repository-item border rounded p-3 mb-2">
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="repo-name font-medium flex items-center">
+                    <i class="fas fa-code-branch mr-2"></i> <span class="repo-name-text"></span>
+                </div>
+                <div class="repo-url text-sm text-gray-600"></div>
+                <div class="repo-status text-xs mt-1">
+                    <span class="repo-status-text"></span>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button class="browse-repo-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+                <button class="sync-repo-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-sync"></i>
+                </button>
+                <button class="remove-repo-button danger-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
         </div>
-        <div class="repo-url text-sm text-gray-600"></div>
-        <div class="repo-status text-xs mt-1">
-          <span class="repo-status-text"></span>
-        </div>
-      </div>
-      <div class="flex gap-2">
-        <button class="browse-repo-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
-          <i class="fas fa-folder-open"></i>
-        </button>
-        <button class="sync-repo-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
-          <i class="fas fa-sync"></i>
-        </button>
-        <button class="remove-repo-button danger-button text-sm py-1 px-2 flex items-center justify-center">
-          <i class="fas fa-trash"></i>
-        </button>
-      </div>
     </div>
-  </div>
 </template>
 
 <!-- Template for folder items -->
 <template id="folder-item-template">
-  <div class="folder-item border rounded p-3 mb-2">
-    <div class="flex justify-between items-center">
-      <div>
-        <div class="folder-name font-medium flex items-center">
-          <i class="fas fa-folder mr-2"></i> <span class="folder-name-text"></span>
+    <div class="folder-item border rounded p-3 mb-2">
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="folder-name font-medium flex items-center">
+                    <i class="fas fa-folder mr-2"></i> <span class="folder-name-text"></span>
+                </div>
+                <div class="folder-path text-sm text-gray-600"></div>
+            </div>
+            <div class="flex gap-2">
+                <button class="browse-folder-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+                <button class="remove-folder-button danger-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
         </div>
-        <div class="folder-path text-sm text-gray-600"></div>
-      </div>
-      <div class="flex gap-2">
-        <button class="browse-folder-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
-          <i class="fas fa-folder-open"></i>
-        </button>
-        <button class="remove-folder-button danger-button text-sm py-1 px-2 flex items-center justify-center">
-          <i class="fas fa-trash"></i>
-        </button>
-      </div>
     </div>
-  </div>
 </template>
 
 <!-- File Browser Modal -->
 <div id="file-browser-modal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2 id="file-browser-title"><i class="fas fa-folder-open"></i> Datei Browser</h2>
-      <span class="close">&times;</span>
-    </div>
-    <div class="modal-body">
-      <div class="file-browser-nav mb-4">
-        <div class="flex items-center mb-2">
-          <button id="file-browser-back" class="secondary-button text-sm py-1 px-2 mr-2">
-            <i class="fas fa-arrow-left"></i>
-          </button>
-          <span id="file-browser-path" class="text-sm text-gray-600 font-mono"></span>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="file-browser-title"><i class="fas fa-folder-open"></i> Datei Browser</h2>
+            <span class="close">&times;</span>
         </div>
+        <div class="modal-body">
+            <div class="file-browser-nav mb-4">
+                <div class="flex items-center mb-2">
+                    <button id="file-browser-back" class="secondary-button text-sm py-1 px-2 mr-2">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <span id="file-browser-path" class="text-sm text-gray-600 font-mono"></span>
+                </div>
 
-        <div class="flex">
-          <input type="text" id="file-search-input" class="w-full p-2 border border-gray-300 rounded-l"
-                 placeholder="In Dateien suchen...">
-          <button id="file-search-button" class="primary-button rounded-l-none">
-            <i class="fas fa-search"></i>
-          </button>
-        </div>
-      </div>
+                <div class="flex">
+                    <input type="text" id="file-search-input" class="w-full p-2 border border-gray-300 rounded-l"
+                           placeholder="In Dateien suchen...">
+                    <button id="file-search-button" class="primary-button rounded-l-none">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
 
-      <div id="file-browser-content" class="border rounded p-2 max-h-96 overflow-auto">
-        <div class="loading">
-          <div class="loading-dot"></div>
-          <div class="loading-dot"></div>
-          <div class="loading-dot"></div>
-        </div>
-      </div>
+            <div id="file-browser-content" class="border rounded p-2 max-h-96 overflow-auto">
+                <div class="loading">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+            </div>
 
-      <div id="file-content-viewer" class="border rounded p-2 mt-4 hidden">
-        <div class="flex justify-between items-center mb-2">
-          <h3 id="file-content-name" class="text-lg font-medium"></h3>
-          <button id="file-content-close" class="secondary-button text-sm py-1 px-2">
-            <i class="fas fa-times"></i> Schließen
-          </button>
+            <div id="file-content-viewer" class="border rounded p-2 mt-4 hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 id="file-content-name" class="text-lg font-medium"></h3>
+                    <button id="file-content-close" class="secondary-button text-sm py-1 px-2">
+                        <i class="fas fa-times"></i> Schließen
+                    </button>
+                </div>
+                <pre id="file-content-pre" class="bg-gray-50 p-4 rounded max-h-96 overflow-auto text-sm font-mono"></pre>
+            </div>
         </div>
-        <pre id="file-content-pre" class="bg-gray-50 p-4 rounded max-h-96 overflow-auto text-sm font-mono"></pre>
-      </div>
+        <div class="modal-footer p-4 flex justify-between">
+            <div>
+                <button id="file-browser-send-to-chat" class="primary-button">
+                    <i class="fas fa-paper-plane mr-2"></i> In Chat einfügen
+                </button>
+            </div>
+            <button id="file-browser-close" class="secondary-button">
+                Schließen
+            </button>
+        </div>
     </div>
-    <div class="modal-footer p-4 flex justify-between">
-      <div>
-        <button id="file-browser-send-to-chat" class="primary-button">
-          <i class="fas fa-paper-plane mr-2"></i> In Chat einfügen
-        </button>
-      </div>
-      <button id="file-browser-close" class="secondary-button">
-        Schließen
-      </button>
-    </div>
-  </div>
 </div>
 
 <!-- Notification container -->
 <div id="notification-container" class="fixed bottom-4 right-4 z-50"></div>
 
-<!-- Scripts -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <!-- Main application script -->
 <script src="../js/utils/dom-utils.js"></script>
 <script src="../js/utils/ui-utils.js"></script>
@@ -570,6 +568,5 @@
 <script src="../js/components/models.js"></script>
 <script src="../js/components/settings.js"></script>
 <script src="../js/app.js"></script>
-<script>hljs.highlightAll();</script>
 </body>
 </html>
