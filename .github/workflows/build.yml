@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build and Release Windows
 
 on:
   push:
@@ -10,6 +10,13 @@ on:
         description: 'Version to build (e.g. 1.0.0)'
         required: true
         default: ''
+
+# Explizite Berechtigungen hinzufügen
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
 
 jobs:
   release:
@@ -28,50 +35,30 @@ jobs:
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           fi
 
+      # Verwendung des gh-Befehls für Release-Erstellung
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          release_name: KI-Assistant v${{ steps.get_version.outputs.version }}
-          draft: true
-          prerelease: false
-          body: |
-            KI-Assistant Version ${{ steps.get_version.outputs.version }}
-            
-            ## Änderungen in dieser Version
-            
-            _Bitte fügen Sie hier die Änderungen manuell ein._
-            
-            ## Download
-            
-            - Windows: KI-Assistant-Setup-${{ steps.get_version.outputs.version }}.exe
-            - macOS: KI-Assistant-${{ steps.get_version.outputs.version }}.dmg
-            - Linux: KI-Assistant-${{ steps.get_version.outputs.version }}.AppImage
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          gh release create v$VERSION \
+            --draft \
+            --title "KI-Assistant v$VERSION" \
+            --notes "KI-Assistant Version $VERSION
 
-  build:
-    name: Build (${{ matrix.os }})
+          ## Änderungen in dieser Version
+          
+          _Bitte fügen Sie hier die Änderungen manuell ein._
+          
+          ## Download
+          
+          - Windows: KI-Assistant-Setup-$VERSION.exe"
+
+  build-windows:
+    name: Build Windows
     needs: release
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-        include:
-          - os: windows-latest
-            platform: win
-            artifact_name: KI-Assistant-Setup
-            ext: .exe
-          - os: macos-latest
-            platform: mac
-            artifact_name: KI-Assistant
-            ext: .dmg
-          - os: ubuntu-latest
-            platform: linux
-            artifact_name: KI-Assistant
-            ext: .AppImage
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
@@ -90,106 +77,45 @@ jobs:
         run: |
           npm version ${{ needs.release.outputs.version }} --no-git-tag-version
 
-      # Windows specific setup
-      - name: Windows code signing setup
-        if: matrix.os == 'windows-latest'
-        shell: bash
-        env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: |
-          if [ -n "$WIN_CSC_LINK" ] && [ -n "$WIN_CSC_KEY_PASSWORD" ]; then
-            echo "CSC_LINK=$WIN_CSC_LINK" >> $GITHUB_ENV
-            echo "CSC_KEY_PASSWORD=$WIN_CSC_KEY_PASSWORD" >> $GITHUB_ENV
-            echo "Code signing für Windows aktiviert"
-          else
-            echo "Keine Windows-Codesignierungs-Credentials gefunden. Die App wird ohne Signatur erstellt."
-          fi
-
-      # macOS specific setup
-      - name: macOS code signing setup
-        if: matrix.os == 'macos-latest'
-        shell: bash
-        env:
-          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          if [ -n "$MAC_CSC_LINK" ] && [ -n "$MAC_CSC_KEY_PASSWORD" ]; then
-            echo "CSC_LINK=$MAC_CSC_LINK" >> $GITHUB_ENV
-            echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD" >> $GITHUB_ENV
-            echo "Code signing für macOS aktiviert"
-          
-            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
-              echo "APPLE_ID=$APPLE_ID" >> $GITHUB_ENV
-              echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD" >> $GITHUB_ENV
-          
-              if [ -n "$APPLE_TEAM_ID" ]; then
-                echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> $GITHUB_ENV
-              fi
-          
-              echo "Notarisierung für macOS aktiviert"
-            else
-              echo "Keine Notarisierungs-Credentials gefunden. Die App wird ohne Notarisierung erstellt."
-            fi
-          else
-            echo "Keine macOS-Codesignierungs-Credentials gefunden. Die App wird ohne Signatur erstellt."
-          fi
-
-      # Install additional dependencies for notarization if needed
-      - name: Install electron-notarize (macOS only)
-        if: matrix.os == 'macos-latest'
-        run: npm install --save-dev @electron/notarize
-
-      # Build the app for the specific platform
-      - name: Build app
-        run: npm run build:${{ matrix.platform }}
+      # Build the app for Windows
+      - name: Build Windows app
+        run: npm run build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Package artifacts based on platform
+      # Package artifacts
       - name: Package Windows artifacts
-        if: matrix.os == 'windows-latest'
         run: |
           mkdir -p output
-          cp "dist/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}" output/
-
-      - name: Package macOS artifacts
-        if: matrix.os == 'macos-latest'
-        run: |
-          mkdir -p output
-          cp "dist/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}" output/
-
-      - name: Package Linux artifacts
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          mkdir -p output
-          cp "dist/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}" output/
+          cp "dist/KI-Assistant-Setup-${{ needs.release.outputs.version }}.exe" output/
 
       # Upload build artifacts to GitHub
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}-${{ matrix.platform }}
+          name: KI-Assistant-Setup-${{ needs.release.outputs.version }}
           path: output
 
-      # Upload to release
+      # Upload to release using the gh cli
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+        if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: output/${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}
-          asset_name: ${{ matrix.artifact_name }}-${{ needs.release.outputs.version }}${{ matrix.ext }}
-          asset_content_type: application/octet-stream
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          $assetPath = "output/KI-Assistant-Setup-$env:VERSION.exe"
+          if (Test-Path $assetPath) {
+            echo "Uploading $assetPath to release..."
+            gh release upload "v$env:VERSION" "$assetPath"
+          } else {
+            echo "Error: Asset not found at $assetPath"
+            exit 1
+          }
 
   # Final job to mark release as ready
   finalize:
     name: Finalize Release
-    needs: [release, build]
+    needs: [release, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
