@@ -89,9 +89,6 @@ jobs:
       # Build the app for Windows
       - name: Build Windows app
         run: |
-          # Zeigen Sie den Inhalt des dist-Verzeichnisses vor dem Build
-          dir dist
-
           # Führen Sie den Build-Befehl aus und zeigen Sie Details
           npm run build:win
 
