@@ -88,15 +88,31 @@ jobs:
 
       # Build the app for Windows
       - name: Build Windows app
-        run: npm run build:win
+        run: |
+          # Zeigen Sie den Inhalt des dist-Verzeichnisses vor dem Build
+          dir dist
+
+          # Führen Sie den Build-Befehl aus und zeigen Sie Details
+          npm run build:win
+
+          # Zeigen Sie den Inhalt des dist-Verzeichnisses nach dem Build
+          dir dist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Package artifacts
       - name: Package Windows artifacts
         run: |
-          mkdir -p output
-          cp "dist/KI-Assistant-Setup-${{ needs.release.outputs.version }}.exe" output/
+          # Suchen Sie die Installationsdatei
+          $exeFile = Get-ChildItem -Path dist -Recurse -Include "*.exe" | Select-Object -First 1
+
+          if ($exeFile) {
+            mkdir -p output
+            Copy-Item $exeFile.FullName -Destination "output/KI-Assistant-Setup-${{ needs.release.outputs.version }}.exe"
+          } else {
+            Write-Error "No executable found in dist directory"
+            exit 1
+          }
 
       # Upload build artifacts to GitHub
       - name: Upload artifacts
