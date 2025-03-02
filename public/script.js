@@ -1,6 +1,7 @@
 // script.js - Frontend-Funktionalität
 document.addEventListener('DOMContentLoaded', () => {
     loadSources();
+    initChatHistory();
 
     // Element-Referenzen
     const chatMessages         = document.getElementById('chat-messages');
@@ -16,18 +17,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelSettingsButton = document.getElementById('cancel-settings');
 
     // Einstellungsfelder
-    const lmStudioUrlInput       = document.getElementById('lmStudioUrl');
-    const lmStudioModelInput     = document.getElementById('lmStudioModel');
-    const serverPortInput        = document.getElementById('serverPort');
-    const maxSearchResultsInput  = document.getElementById('maxSearchResults');
-    const searchTimeoutInput     = document.getElementById('searchTimeout');
-    const autoCheckLMStudioInput = document.getElementById('autoCheckLMStudio');
-    const debugModeInput         = document.getElementById('debugMode');
-    const systemPromptInput      = document.getElementById('systemPrompt');
-    const minimizeToTrayInput    = document.getElementById('minimizeToTray');
-    const startWithWindowsInput  = document.getElementById('startWithWindows');
-    const checkForUpdatesInput   = document.getElementById('checkForUpdates');
-    const defaultSearchModeInput = document.getElementById('defaultSearchMode');
+    const lmStudioUrlInput        = document.getElementById('lmStudioUrl');
+    const lmStudioModelInput      = document.getElementById('lmStudioModel');
+    const serverPortInput         = document.getElementById('serverPort');
+    const maxSearchResultsInput   = document.getElementById('maxSearchResults');
+    const searchTimeoutInput      = document.getElementById('searchTimeout');
+    const autoCheckLMStudioInput  = document.getElementById('autoCheckLMStudio');
+    const debugModeInput          = document.getElementById('debugMode');
+    const systemPromptInput       = document.getElementById('systemPrompt');
+    const minimizeToTrayInput     = document.getElementById('minimizeToTray');
+    const startWithWindowsInput   = document.getElementById('startWithWindows');
+    const checkForUpdatesInput    = document.getElementById('checkForUpdates');
+    const defaultSearchModeInput  = document.getElementById('defaultSearchMode');
+    const maxHistoryMessagesInput = document.getElementById('max-history-messages');
+    const maxConversationsInput   = document.getElementById('max-conversations');
 
     // Modellverwaltung-Elemente
     const modelsList            = document.getElementById('models-list');
@@ -85,6 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedFiles         = [];
     let browseHistory         = [];
     let sources               = {};
+    let currentSessionId      = null;
+    let chatHistory           = [];
+    let cancelCurrentRequest  = false;
 
     // Status-Tracking
     let isProcessing = false;
@@ -122,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Stelle sicher, dass der Status ein Objekt ist
         if (status && typeof status === 'object') {
             if (status.status && status.message) {
-                updateStatusIndicator(status.status, status.message);
+                updateApplicationStatus(status);
             } else {
                 console.warn('Unvollständiger Status', status);
             }
@@ -134,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // IPC-Listener für Modell-Status
     let removeModelListener = window.electronAPI.onModelStatus((status) => {
         if (status && typeof status === 'object') {
-            updateModelStatus(status);
+            updateApplicationStatus(status);
         } else {
             console.error('Ungültiger Modell-Status empfangen', status);
         }
@@ -170,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Sendet die Nachricht an den Server
      */
-    async function sendMessage() {
+    async function sendMessage(startNewConversation = false) {
         const message    = userInput.value.trim();
         const contentUrl = contentUrlInput ? contentUrlInput.value.trim() : null;
 
@@ -200,9 +206,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Accept'      : 'text/event-stream'
                 },
                 body   : JSON.stringify({
-                    message      : message,
-                    webSearchMode: webSearchMode.value,
-                    contentUrl   : contentUrl
+                    message        : message,
+                    webSearchMode  : webSearchMode.value,
+                    contentUrl     : contentUrl,
+                    newConversation: startNewConversation
                 })
             });
 
@@ -227,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let fullResponse     = '';
             let isStreamComplete = false;
 
-            while (!isStreamComplete) {
+            while (!isStreamComplete && !cancelCurrentRequest) {
                 const {done, value} = await reader.read();
 
                 if (done) break;
@@ -273,7 +280,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Beende äußere Schleife, wenn Stream komplett
-                if (isStreamComplete) break;
+                if (isStreamComplete || cancelCurrentRequest) break;
+            }
+
+            if (cancelCurrentRequest) {
+                contentElement.innerHTML += '<p><em>(Antwort abgebrochen)</em></p>';
             }
         } catch (error) {
             console.error('Fehler beim Senden der Nachricht:', error);
@@ -293,30 +304,40 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const config = await window.electronAPI.getSettings();
 
+            // Entferne die obere Status-Anzeige aus dem DOM, da wir sie nicht mehr benötigen
+            const modelStatusIndicator = document.getElementById('model-status-indicator');
+            if (modelStatusIndicator) {
+                modelStatusIndicator.style.display = 'none';
+            }
+
+            // Zeige die untere Statusleiste immer an
+            document.getElementsByClassName('status')[0].style.display = 'flex';
+
             if (config.useLocalLlm) {
                 // Bei lokalem LLM: Modellstatus prüfen
                 const modelResult = await window.electronAPI.getAvailableModels();
                 if (modelResult.success && modelResult.currentModel) {
-                    updateModelStatus({
+                    updateApplicationStatus({
                         status : 'loaded',
-                        message: `Modell geladen: ${modelResult.currentModel}`
+                        message: `Modell geladen: ${modelResult.currentModel}`,
+                        model  : modelResult.currentModel
                     });
                 } else {
-                    updateModelStatus({
+                    updateApplicationStatus({
                         status : 'error',
                         message: 'Kein Modell geladen'
                     });
                 }
-
-                document.getElementsByClassName('status')[0].style.display = 'none';
             } else {
-                document.getElementsByClassName('status')[0].style.display = 'flex';
                 // Bei LM Studio: Verbindung prüfen
                 await window.electronAPI.checkLMStudioStatus();
             }
         } catch (error) {
             console.error('Fehler bei der Statusprüfung:', error);
-            updateStatusIndicator('error', 'Verbindungsproblem');
+            updateApplicationStatus({
+                status : 'error',
+                message: 'Verbindungsproblem'
+            });
         }
     }
 
@@ -359,19 +380,78 @@ document.addEventListener('DOMContentLoaded', () => {
         switch (status) {
             case 'connected':
                 statusDot.classList.add('online');
+                // Ersetze den Text durch "Mit LM Studio verbunden", wenn verbunden
+                statusText.textContent = "Mit LM Studio verbunden";
                 break;
             case 'disconnected':
                 statusDot.classList.add('offline');
+                statusText.textContent = message;
                 break;
             case 'warning':
                 statusDot.classList.add('warning');
+                statusText.textContent = message;
                 break;
             default:
                 statusDot.classList.add('offline');
+                statusText.textContent = message;
+        }
+    }
+
+    /**
+     * Aktualisiert den Status je nach Modus (lokales LLM oder LM Studio)
+     * @param {object} status - Statusobjekt
+     */
+    function updateApplicationStatus(status) {
+        if (!statusIndicator) return;
+
+        const statusDot  = statusIndicator.querySelector('.status-dot');
+        const statusText = statusIndicator.querySelector('span');
+
+        // Stelle sicher, dass die Elemente existieren
+        if (!statusDot || !statusText) {
+            console.error('Status-Elemente nicht gefunden');
+            return;
         }
 
-        // Aktualisiere den Text
-        statusText.textContent = message;
+        // Entferne alle Status-Klassen
+        statusDot.classList.remove('online', 'offline', 'warning');
+
+        // Prüfen, ob wir lokales LLM oder LM Studio verwenden
+        window.electronAPI.getSettings().then(config => {
+            if (config.useLocalLlm) {
+                // Lokales LLM-Modus
+                if (status.status === 'loaded') {
+                    statusDot.classList.add('online');
+                    statusText.textContent = `Modell geladen: ${status.model || status.message.split(': ')[1] || ''}`;
+                } else if (status.status === 'loading' || status.status === 'downloading') {
+                    statusDot.classList.add('warning');
+                    statusText.textContent = status.message;
+                } else {
+                    statusDot.classList.add('offline');
+                    statusText.textContent = status.message || 'Kein Modell geladen';
+                }
+            } else {
+                // LM Studio-Modus
+                if (status.status === 'connected') {
+                    statusDot.classList.add('online');
+                    statusText.textContent = 'Mit LM Studio verbunden';
+                } else {
+                    statusDot.classList.add('offline');
+                    statusText.textContent = status.message || 'LM Studio nicht erreichbar';
+                }
+            }
+        }).catch(error => {
+            console.error("Fehler beim Abrufen der Einstellungen:", error);
+            // Fallback bei Fehler
+            if (status.status === 'connected' || status.status === 'loaded') {
+                statusDot.classList.add('online');
+            } else if (status.status === 'loading' || status.status === 'downloading') {
+                statusDot.classList.add('warning');
+            } else {
+                statusDot.classList.add('offline');
+            }
+            statusText.textContent = status.message || 'Status unbekannt';
+        });
     }
 
     /**
@@ -403,7 +483,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Statustext aktualisieren
         if (modelStatusText) {
-            modelStatusText.textContent = status.message;
+            // Überprüfen, ob wir im lokalen LLM-Modus sind
+            window.electronAPI.getSettings().then(config => {
+                if (config.useLocalLlm) {
+                    // Im lokalen LLM-Modus: Zeige Modellnamen an
+                    if (status.status === 'loaded' && status.model) {
+                        modelStatusText.textContent = `Modell geladen: ${status.model}`;
+                    } else {
+                        modelStatusText.textContent = status.message;
+                    }
+                } else {
+                    // Im LM Studio-Modus: Zeige "Mit LM Studio verbunden" an
+                    if (status.status === 'connected') {
+                        modelStatusText.textContent = "Mit LM Studio verbunden";
+                    } else {
+                        modelStatusText.textContent = status.message;
+                    }
+                }
+            }).catch(error => {
+                console.error("Fehler beim Abrufen der Einstellungen:", error);
+                modelStatusText.textContent = status.message; // Fallback
+            });
         }
     }
 
@@ -487,7 +587,11 @@ document.addEventListener('DOMContentLoaded', () => {
             minimizeToTray   : minimizeToTrayInput.checked,
             startWithWindows : startWithWindowsInput.checked,
             checkForUpdates  : checkForUpdatesInput.checked,
-            defaultSearchMode: defaultSearchModeInput.value
+            defaultSearchMode: defaultSearchModeInput.value,
+
+            // Chat-Historie-Einstellungen
+            maxHistoryMessages: parseInt(maxHistoryMessagesInput.value) || 20,
+            maxConversations  : parseInt(maxConversationsInput.value) || 10,
         };
 
         // LLM-Einstellungen hinzufügen, wenn verfügbar
@@ -535,6 +639,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (contextSizeInput) contextSizeInput.value = config.contextSize || 2048;
         if (cpuThreadsInput) cpuThreadsInput.value = config.threads || 4;
         if (gpuLayersInput) gpuLayersInput.value = config.gpuLayers || 0;
+
+        // Chat-Historie-Einstellungen
+        if (maxHistoryMessagesInput) maxHistoryMessagesInput.value = config.maxHistoryMessages || 20;
+        if (maxConversationsInput) maxConversationsInput.value = config.maxConversations || 10;
 
         // UI-Element-Sichtbarkeit aktualisieren
         updateLLMMode(config.useLocalLlm);
@@ -756,6 +864,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Einstellungen aus Formular sammeln
         const settings = getSettingsFromForm();
 
+        // Speichern Sie den aktuellen LLM-Modus, um Änderungen zu erkennen
+        const previousUseLocalLlm = (await window.electronAPI.getSettings()).useLocalLlm;
+
         try {
             // Einstellungen speichern
             const result = await window.electronAPI.saveSettings(settings);
@@ -769,8 +880,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     webSearchMode.value = settings.defaultSearchMode;
                 }
 
-                // Verbindungsstatus nach Modus-Änderung erneut prüfen
-                checkConnectionStatus();
+                // Wenn der LLM-Modus geändert wurde, aktualisiere die Statusanzeige
+                if (previousUseLocalLlm !== settings.useLocalLlm) {
+                    // Verzögerung hinzufügen, um sicherzustellen, dass die Backend-Änderungen wirksam werden
+                    setTimeout(() => {
+                        checkConnectionStatus();
+                    }, 500);
+                } else {
+                    // Verbindungsstatus nach Modus-Änderung erneut prüfen
+                    checkConnectionStatus();
+                }
             }
         } catch (error) {
             console.error('Fehler beim Speichern der Einstellungen:', error);
@@ -1048,6 +1167,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Fehler beim Laden der Quellen:', error);
+        }
+    }
+
+    async function initChatHistory() {
+        try {
+            const result = await window.electronAPI.getChatHistory();
+
+            if (result.success) {
+                currentSessionId = result.currentSessionId;
+                chatHistory      = result.messages || [];
+
+                // Den Chat-Container leeren (nur wenn es keine Nachrichten gibt)
+                if (chatHistory.length === 0) {
+                    chatMessages.innerHTML = '';
+
+                    // Willkommensnachricht hinzufügen
+                    appendMessage('assistant', 'Hallo! Ich bin dein KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?');
+                } else {
+                    // Bestehende Nachrichten anzeigen
+                    chatMessages.innerHTML = '';
+
+                    for (const message of chatHistory) {
+                        await appendMessage(message.role, message.content);
+                    }
+                }
+            } else {
+                console.error('Fehler beim Initialisieren der Chat-Historie:', result.error);
+            }
+        } catch (error) {
+            console.error('Fehler beim Laden der Chat-Historie:', error);
         }
     }
 
@@ -1870,8 +2019,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         `${hint}\n${fileReferences}`;
 
                     // Eingabefeld-Höhe anpassen
-                    userInput.style.height = 'auto';
-                    userInput.style.height = Math.min(userInput.scrollHeight, 300) + 'px';
+                    userInput.style.height    = 'auto';
+                    userInput.style.height    = Math.min(userInput.scrollHeight, 300) + 'px';
                     userInput.style.overflowY = userInput.scrollHeight > 300 ? 'scroll' : 'hidden';
 
                     // Modal schließen
@@ -1924,5 +2073,272 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return references;
+    }
+
+    async function loadConversation(conversationId) {
+        try {
+            const result = await window.electronAPI.loadConversation({conversationId});
+
+            if (result.success) {
+                // Verarbeitungsstatus zurücksetzen
+                isProcessing = false;
+                if (sendButton) sendButton.disabled = false;
+
+                currentSessionId = result.conversationId;
+                chatHistory      = result.messages || [];
+
+                // Chat-Verlauf anzeigen
+                chatMessages.innerHTML = '';
+
+                for (const message of chatHistory) {
+                    await appendMessage(message.role, message.content);
+                }
+
+                return true;
+            } else {
+                showNotification(`Fehler: ${result.error}`, 'error');
+                return false;
+            }
+        } catch (error) {
+            showNotification(`Fehler: ${error.message}`, 'error');
+            return false;
+        }
+    }
+
+    async function startNewConversation() {
+        if (isProcessing) {
+            cancelCurrentRequest = true;
+        }
+
+        try {
+            const result = await window.electronAPI.startNewConversation();
+
+            if (result.success) {
+                // Wichtig: Verarbeitungsstatus zurücksetzen, damit im neuen Chat
+                // sofort eine Nachricht gesendet werden kann
+                isProcessing = false;
+                if (sendButton) sendButton.disabled = false;
+
+                currentSessionId = result.sessionId;
+                chatHistory      = [];
+
+                // Chat-Verlauf löschen
+                chatMessages.innerHTML = '';
+
+                // Willkommensnachricht hinzufügen
+                appendMessage('assistant', 'Hallo! Ich bin dein KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?');
+
+                showNotification('Neue Konversation gestartet');
+                return true;
+            } else {
+                showNotification(`Fehler: ${result.error}`, 'error');
+                return false;
+            }
+        } catch (error) {
+            showNotification(`Fehler: ${error.message}`, 'error');
+            return false;
+        }
+    }
+
+    function addConversationButtons() {
+        // Erstelle Container für die Konversations-Buttons
+        const buttonsContainer     = document.createElement('div');
+        buttonsContainer.className = 'flex items-center gap-2 ml-4';
+
+        // Neuer Chat Button
+        const newChatButton     = document.createElement('button');
+        newChatButton.className = 'bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-1 px-2 rounded';
+        newChatButton.innerHTML = '<i class="fas fa-plus mr-1"></i> Neuer Chat';
+        newChatButton.addEventListener('click', startNewConversation);
+
+        // Verlauf Button
+        const historyButton     = document.createElement('button');
+        historyButton.className = 'bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium py-1 px-2 rounded';
+        historyButton.innerHTML = '<i class="fas fa-history mr-1"></i> Verlauf';
+        historyButton.addEventListener('click', showHistoryModal);
+
+        // Buttons zum Container hinzufügen
+        buttonsContainer.appendChild(newChatButton);
+        buttonsContainer.appendChild(historyButton);
+
+        // Finde den richtigen Platz zum Einfügen des Containers
+        const headerRightElement = document.querySelector('header > div');
+        if (headerRightElement) {
+            headerRightElement.insertBefore(buttonsContainer, headerRightElement.firstChild);
+        }
+    }
+
+    addConversationButtons();
+
+    async function showHistoryModal() {
+        try {
+            const result = await window.electronAPI.getAllConversations();
+
+            if (!result.success) {
+                showNotification(`Fehler: ${result.error}`, 'error');
+                return;
+            }
+
+            const conversations = result.conversations || [];
+
+            // Erstelle das Modal, wenn es noch nicht existiert
+            let historyModal = document.getElementById('history-modal');
+
+            if (!historyModal) {
+                // Modal erstellen
+                historyModal           = document.createElement('div');
+                historyModal.id        = 'history-modal';
+                historyModal.className = 'modal';
+
+                // Modal-Inhalt
+                historyModal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2><i class="fas fa-history"></i> Chat-Verlauf</h2>
+                        <span class="close">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div id="conversations-list" class="max-h-96 overflow-y-auto">
+                            <p class="text-gray-500">Keine Konversationen vorhanden</p>
+                        </div>
+                    </div>
+                    <div class="modal-footer p-4 flex justify-between">
+                        <button id="clear-all-conversations" class="danger-button">
+                            <i class="fas fa-trash mr-2"></i> Alle löschen
+                        </button>
+                        <button id="close-history-modal" class="secondary-button">
+                            Schließen
+                        </button>
+                    </div>
+                </div>
+            `;
+
+                document.body.appendChild(historyModal);
+
+                // Event-Listener für Schließen-Button
+                historyModal.querySelector('.close').addEventListener('click', () => {
+                    historyModal.style.display = 'none';
+                });
+
+                // Event-Listener für Schließen-Button im Footer
+                historyModal.querySelector('#close-history-modal').addEventListener('click', () => {
+                    historyModal.style.display = 'none';
+                });
+
+                // Event-Listener für "Alle löschen"-Button
+                historyModal.querySelector('#clear-all-conversations').addEventListener('click', async () => {
+                    if (confirm('Möchtest du wirklich alle Konversationen löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+                        try {
+                            const result = await window.electronAPI.clearAllConversations();
+
+                            if (result.success) {
+                                showNotification('Alle Konversationen wurden gelöscht');
+                                historyModal.style.display = 'none';
+                                await startNewConversation();
+                            } else {
+                                showNotification(`Fehler: ${result.error}`, 'error');
+                            }
+                        } catch (error) {
+                            showNotification(`Fehler: ${error.message}`, 'error');
+                        }
+                    }
+                });
+
+                // Modal schließen, wenn außerhalb geklickt wird
+                window.addEventListener('click', (event) => {
+                    if (event.target === historyModal) {
+                        historyModal.style.display = 'none';
+                    }
+                });
+            }
+
+            // Konversationen im Modal anzeigen
+            const conversationsList = historyModal.querySelector('#conversations-list');
+
+            if (conversations.length === 0) {
+                conversationsList.innerHTML = '<p class="text-gray-500">Keine Konversationen vorhanden</p>';
+            } else {
+                conversationsList.innerHTML = '';
+
+                conversations.forEach(conversation => {
+                    const item     = document.createElement('div');
+                    item.className = 'border rounded p-3 mb-2 hover:bg-gray-50 cursor-pointer';
+
+                    // Formatiere das Datum
+                    const date          = new Date(conversation.lastUpdated);
+                    const formattedDate = date.toLocaleString('de-de', {
+                        year  : '2-digit',
+                        month : '2-digit',
+                        day   : '2-digit',
+                        hour  : '2-digit',
+                        minute: '2-digit'
+                    });
+
+                    item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-medium">${conversation.title}</div>
+                            <div class="text-sm text-gray-600">${formattedDate} · ${conversation.messageCount} Nachrichten</div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="secondary-button text-sm py-1 px-2 flex items-center justify-center load-conversation-button">
+                                <i class="fas fa-folder-open"></i>
+                            </button>
+                            <button class="danger-button text-sm py-1 px-2 flex items-center justify-center delete-conversation-button">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                    // Lade Konversation
+                    item.querySelector('.load-conversation-button').addEventListener('click', async (e) => {
+                        e.stopPropagation(); // Verhindern, dass das übergeordnete Element geklickt wird
+
+                        await loadConversation(conversation.id);
+                        historyModal.style.display = 'none';
+                    });
+
+                    // Lösche Konversation
+                    item.querySelector('.delete-conversation-button').addEventListener('click', async (e) => {
+                        e.stopPropagation(); // Verhindern, dass das übergeordnete Element geklickt wird
+
+                        if (confirm(`Möchtest du die Konversation "${conversation.title}" wirklich löschen?`)) {
+                            try {
+                                const result = await window.electronAPI.deleteConversation({conversationId: conversation.id});
+
+                                if (result.success) {
+                                    showNotification('Konversation gelöscht');
+                                    // Aktualisiere die Liste
+                                    showHistoryModal();
+
+                                    // Wenn die aktuelle Konversation gelöscht wurde, starte eine neue
+                                    if (conversation.id === currentSessionId) {
+                                        await startNewConversation();
+                                    }
+                                } else {
+                                    showNotification(`Fehler: ${result.error}`, 'error');
+                                }
+                            } catch (error) {
+                                showNotification(`Fehler: ${error.message}`, 'error');
+                            }
+                        }
+                    });
+
+                    // Konversation laden, wenn auf das Element geklickt wird
+                    item.addEventListener('click', async () => {
+                        await loadConversation(conversation.id);
+                        historyModal.style.display = 'none';
+                    });
+
+                    conversationsList.appendChild(item);
+                });
+            }
+
+            // Modal anzeigen
+            historyModal.style.display = 'block';
+        } catch (error) {
+            showNotification(`Fehler: ${error.message}`, 'error');
+        }
     }
 });

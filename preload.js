@@ -99,4 +99,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('processing-status', wrappedCallback);
         return () => ipcRenderer.removeListener('processing-status', wrappedCallback);
     },
+
+    // Chat-Historie
+    getChatHistory: () => ipcRenderer.invoke('get-chat-history'),
+    getAllConversations: () => ipcRenderer.invoke('get-all-conversations'),
+    loadConversation: (options) => ipcRenderer.invoke('load-conversation', options),
+    deleteConversation: (options) => ipcRenderer.invoke('delete-conversation', options),
+    startNewConversation: () => ipcRenderer.invoke('start-new-conversation'),
+    clearAllConversations: () => ipcRenderer.invoke('clear-all-conversations'),
+
+    // Abbruch der aktuellen Anfrage
+    cancelCurrentRequest: () => ipcRenderer.invoke('cancel-current-request'),
 });

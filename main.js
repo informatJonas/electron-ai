@@ -6,22 +6,25 @@ const axios                                                    = require('axios'
 const {searchModels}                                           = require('./huggingface');
 const LLMEngine                                                = require('./llm-engine');
 const GitConnector                                             = require('./git-connector');
+const ChatHistoryManager                                       = require('./chat-history');
 
 // Globale Variablen für die Module
 let duckDuckGoSearch, fetchWebContent;
 let checkLMStudioStatus;
 let env;
 let gitConnector;
+let chatHistoryManager;
 
 // Globale Variablen für die Anwendung
-const expressApp = express();
+const expressApp                = express();
 let server;
 let mainWindow;
 let tray;
 let lmStudioCheckInterval;
 let llmEngine;
-let currentModel = null;
-let config       = {};
+let currentModel                = null;
+let config                      = {};
+let currentGenerationController = null;
 
 function initGitConnector() {
     // Konfiguration für den GitConnector vorbereiten
@@ -33,6 +36,19 @@ function initGitConnector() {
     gitConnector = new GitConnector(gitConnectorConfig);
 
     console.log('GitConnector initialisiert');
+}
+
+function initChatHistory() {
+    // Konfiguration für den ChatHistoryManager
+    const chatHistoryConfig = {
+        maxHistoryMessages: config.maxHistoryMessages || 20,
+        maxConversations  : config.maxConversations || 10
+    };
+
+    // ChatHistoryManager initialisieren
+    chatHistoryManager = new ChatHistoryManager(chatHistoryConfig);
+
+    console.log('ChatHistoryManager initialisiert');
 }
 
 // Module asynchron laden
@@ -51,7 +67,12 @@ async function loadModules() {
 
         // Konfiguration laden
         config = env.getConfig();
-        initGitConnector()
+
+        // Git-Connector initialisieren
+        initGitConnector();
+
+        // Chat-Historie initialisieren
+        initChatHistory();
         return true;
     } catch (error) {
         console.error('Fehler beim Laden der Module:', error);
@@ -141,7 +162,17 @@ function setupExpressRoutes() {
 
     expressApp.post('/api/chat', async (req, res) => {
         try {
-            const {message, webSearchMode, contentUrl} = req.body;
+            const {message, webSearchMode, contentUrl, newConversation} = req.body;
+
+            // Wenn eine neue Konversation angefordert wird, starte eine neue
+            if (newConversation && currentGenerationController) {
+                currentGenerationController.abort();
+                currentGenerationController = null;
+            }
+
+            // AbortController für die aktuelle Anfrage erstellen
+            currentGenerationController = new AbortController();
+            const signal                = currentGenerationController.signal;
 
             // Entscheidung: LM Studio oder lokales LLM verwenden
             const useLocalLLM = config.useLocalLlm;
@@ -256,11 +287,14 @@ function setupExpressRoutes() {
             if (useLocalLLM) {
                 // ***** Lokales LLM verwenden *****
                 try {
-                    // Chat-Nachrichten vorbereiten
-                    const messages = [
-                        {role: 'system', content: systemPrompt},
-                        {role: 'user', content: fullMessage}
-                    ];
+                    // Benutzer-Nachricht zur Historie hinzufügen
+                    chatHistoryManager.addMessage('user', fullMessage);
+
+                    // Chat-Nachrichten mit Historie vorbereiten (ohne die gerade hinzugefügte Nachricht)
+                    const messages = chatHistoryManager.getFormattedHistoryForLLM(systemPrompt, true);
+
+                    // Aktuelle Benutzer-Nachricht explizit hinzufügen
+                    messages.push({role: 'user', content: fullMessage});
 
                     // Ergebnisse streamen
                     let streamContent = '';
@@ -278,8 +312,12 @@ function setupExpressRoutes() {
                         temperature: 0.7,
                         maxTokens  : 2048,
                         stream     : true,
-                        onToken    : onTokenCallback
+                        onToken    : onTokenCallback,
+                        signal
                     });
+
+                    // Assistenten-Antwort zur Historie hinzufügen
+                    chatHistoryManager.addMessage('assistant', streamContent);
 
                     // Stream beenden
                     res.write('event: done\ndata: END\n\n');
@@ -291,13 +329,23 @@ function setupExpressRoutes() {
                         message: 'Antwort erfolgreich generiert'
                     });
                 } catch (error) {
-                    console.error('Fehler bei der LLM-Generierung:', error);
+                    // Abbruch erkennen
+                    if (error.name === 'AbortError') {
+                        console.log('Generierung abgebrochen');
+                        // Wenn noch nicht beendet, einen Abbruch-Status senden
+                        if (!res.writableEnded) {
+                            res.write('event: done\ndata: ABORTED\n\n');
+                            res.end();
+                        }
+                    } else {
+                        console.error('Fehler bei der LLM-Generierung:', error);
 
-                    if (!res.writableEnded) {
-                        res.status(500).json({
-                            success: false,
-                            message: `Fehler bei der Antwortgenerierung: ${error.message}`
-                        });
+                        if (!res.writableEnded) {
+                            res.status(500).json({
+                                success: false,
+                                message: `Fehler bei der Antwortgenerierung: ${error.message}`
+                            });
+                        }
                     }
                 }
             } else {
@@ -310,20 +358,30 @@ function setupExpressRoutes() {
                     }
                     apiUrl = `${apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl}/v1/chat/completions`;
 
+                    // Benutzer-Nachricht zur Historie hinzufügen
+                    chatHistoryManager.addMessage('user', fullMessage);
+
+                    // Chat-Nachrichten für LM Studio formatieren (ohne die gerade hinzugefügte Nachricht)
+                    const messagesWithHistory = chatHistoryManager.getFormattedHistoryForLLM(systemPrompt, true);
+
+                    // Aktuelle Benutzer-Nachricht explizit hinzufügen
+                    messagesWithHistory.push({role: 'user', content: fullMessage});
+
                     // Axios-Konfiguration für Streaming
                     const axiosInstance = axios.create({
                         baseURL     : apiUrl,
                         timeout     : 60000, // 60 Sekunden Timeout
-                        responseType: 'stream'
+                        responseType: 'stream',
+                        signal
                     });
+
+                    // Sammel-Variable für die vollständige Antwort
+                    let fullResponse = '';
 
                     // Streaming-Request
                     const response = await axiosInstance.post('', {
                         model      : config.lmStudioModel,
-                        messages   : [
-                            {role: 'system', content: systemPrompt},
-                            {role: 'user', content: fullMessage}
-                        ],
+                        messages   : messagesWithHistory,
                         temperature: 0.7,
                         stream     : true
                     });
@@ -340,9 +398,14 @@ function setupExpressRoutes() {
                                         const parsed = JSON.parse(jsonStr);
                                         if (parsed.choices && parsed.choices[0].delta.content) {
                                             const content = parsed.choices[0].delta.content;
+
+                                            fullResponse += content;
                                             res.write(`data: ${JSON.stringify(content)}\n\n`);
                                         }
                                     } else {
+                                        // Assistenten-Antwort zur Historie hinzufügen
+                                        chatHistoryManager.addMessage('assistant', fullResponse);
+
                                         res.write('event: done\ndata: END\n\n');
                                         res.end();
                                     }
@@ -355,6 +418,11 @@ function setupExpressRoutes() {
 
                     response.data.on('end', () => {
                         if (!res.writableEnded) {
+                            // Sicherstellen, dass die Assistenten-Antwort zur Historie hinzugefügt wurde
+                            if (fullResponse && !res.headersSent) {
+                                chatHistoryManager.addMessage('assistant', fullResponse);
+                            }
+
                             res.write('event: done\ndata: END\n\n');
                             res.end();
                         }
@@ -373,19 +441,28 @@ function setupExpressRoutes() {
                         message: 'Verbunden mit LM Studio'
                     });
                 } catch (error) {
-                    console.error('Fehler bei der LM Studio-Anfrage:', error);
+                    // Abbruch erkennen
+                    if (error.name === 'AbortError' || error.message === 'canceled') {
+                        console.log('LM Studio Anfrage abgebrochen');
+                        if (!res.writableEnded) {
+                            res.write('event: done\ndata: ABORTED\n\n');
+                            res.end();
+                        }
+                    } else {
+                        console.error('Fehler bei der LM Studio-Anfrage:', error);
 
-                    // Status an die UI senden
-                    mainWindow.webContents.send('lm-studio-status', {
-                        status : 'error',
-                        message: 'Verbindung zu LM Studio fehlgeschlagen'
-                    });
-
-                    if (!res.writableEnded) {
-                        res.status(500).json({
-                            success: false,
-                            message: 'Es gab ein Problem bei der Verarbeitung deiner Anfrage. Stelle sicher, dass LM Studio läuft und der API-Server gestartet ist.'
+                        // Status an die UI senden
+                        mainWindow.webContents.send('lm-studio-status', {
+                            status : 'error',
+                            message: 'Verbindung zu LM Studio fehlgeschlagen'
                         });
+
+                        if (!res.writableEnded) {
+                            res.status(500).json({
+                                success: false,
+                                message: 'Es gab ein Problem bei der Verarbeitung deiner Anfrage. Stelle sicher, dass LM Studio läuft und der API-Server gestartet ist.'
+                            });
+                        }
                     }
                 }
             }
@@ -396,6 +473,9 @@ function setupExpressRoutes() {
                 success: false,
                 message: 'Es gab ein Problem bei der Verarbeitung deiner Anfrage.'
             });
+        } finally {
+            // Controller zurücksetzen, wenn Anfrage abgeschlossen
+            currentGenerationController = null;
         }
     });
 }
@@ -791,7 +871,7 @@ function startLMStudioCheck() {
 
 // LM Studio Connection prüfen
 async function checkLMStudioConnection() {
-    if (!mainWindow || config.useLocalLlm) {
+    if (!mainWindow) {
         return;
     }
 
@@ -803,16 +883,54 @@ async function checkLMStudioConnection() {
         const statusMessage = {
             status : status ? 'connected' : 'disconnected',
             message: status
-                ? 'Verbunden mit LM Studio'
+                ? 'Mit LM Studio verbunden'
                 : 'LM Studio nicht erreichbar'
         };
 
         // Zusätzliche Überprüfungen vor dem Senden
         if (mainWindow && !mainWindow.isDestroyed()) {
+            // Immer lm-studio-status senden, auch wenn im lokalen LLM-Modus
             mainWindow.webContents.send('lm-studio-status', statusMessage);
         }
     } catch (error) {
         console.error('MAIN: Fehler bei der Verbindungsprüfung:', error);
+    }
+}
+
+async function checkConnectionStatus() {
+    try {
+        if (config.useLocalLlm) {
+            // Bei lokalem LLM: Modellstatus prüfen
+            const modelResult = await window.electronAPI.getAvailableModels();
+            if (modelResult.success && modelResult.currentModel) {
+                // Sende den Modellstatus
+                if (mainWindow) {
+                    mainWindow.webContents.send('model-status', {
+                        status : 'loaded',
+                        message: `Modell geladen: ${modelResult.currentModel}`,
+                        model  : modelResult.currentModel
+                    });
+                }
+            } else {
+                if (mainWindow) {
+                    mainWindow.webContents.send('model-status', {
+                        status : 'error',
+                        message: 'Kein Modell geladen'
+                    });
+                }
+            }
+        } else {
+            // Bei LM Studio: Verbindung prüfen
+            await checkLMStudioConnection();
+        }
+    } catch (error) {
+        console.error('Fehler bei der Statusprüfung:', error);
+        if (mainWindow) {
+            mainWindow.webContents.send('model-status', {
+                status : 'error',
+                message: 'Verbindungsproblem'
+            });
+        }
     }
 }
 
@@ -913,6 +1031,106 @@ function stopServer() {
         llmEngine.model = null;
     }
 }
+
+ipcMain.handle('get-chat-history', async () => {
+    try {
+        if (!chatHistoryManager) return {success: false, error: 'ChatHistoryManager nicht initialisiert'};
+
+        return {
+            success         : true,
+            currentSessionId: chatHistoryManager.currentSessionId,
+            messages        : chatHistoryManager.getCurrentHistory()
+        };
+    } catch (error) {
+        console.error('Fehler beim Abrufen der Chat-Historie:', error);
+        return {success: false, error: error.message};
+    }
+});
+
+ipcMain.handle('get-all-conversations', async () => {
+    try {
+        if (!chatHistoryManager) return {success: false, error: 'ChatHistoryManager nicht initialisiert'};
+
+        const conversations = chatHistoryManager.getAllConversations();
+        return {success: true, conversations};
+    } catch (error) {
+        console.error('Fehler beim Abrufen der Konversationen:', error);
+        return {success: false, error: error.message};
+    }
+});
+
+ipcMain.handle('load-conversation', async (event, {conversationId}) => {
+    try {
+        if (!chatHistoryManager) return {success: false, error: 'ChatHistoryManager nicht initialisiert'};
+
+        const messages = chatHistoryManager.loadConversation(conversationId);
+        return {
+            success: true,
+            conversationId,
+            messages
+        };
+    } catch (error) {
+        console.error('Fehler beim Laden der Konversation:', error);
+        return {success: false, error: error.message};
+    }
+});
+
+ipcMain.handle('delete-conversation', async (event, {conversationId}) => {
+    try {
+        if (!chatHistoryManager) return {success: false, error: 'ChatHistoryManager nicht initialisiert'};
+
+        const result = chatHistoryManager.deleteConversation(conversationId);
+        return {success: result};
+    } catch (error) {
+        console.error('Fehler beim Löschen der Konversation:', error);
+        return {success: false, error: error.message};
+    }
+});
+
+ipcMain.handle('cancel-current-request', async () => {
+    try {
+        if (currentGenerationController) {
+            currentGenerationController.abort();
+            currentGenerationController = null;
+            return { success: true };
+        } else {
+            return { success: false, message: 'Keine laufende Anfrage zum Abbrechen' };
+        }
+    } catch (error) {
+        console.error('Fehler beim Abbrechen der Anfrage:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('start-new-conversation', async () => {
+    try {
+        // Laufende Anfrage abbrechen, falls vorhanden
+        if (currentGenerationController) {
+            currentGenerationController.abort();
+            currentGenerationController = null;
+        }
+
+        if (!chatHistoryManager) return {success: false, error: 'ChatHistoryManager nicht initialisiert'};
+
+        const sessionId = chatHistoryManager.startNewConversation();
+        return {success: true, sessionId};
+    } catch (error) {
+        console.error('Fehler beim Starten einer neuen Konversation:', error);
+        return {success: false, error: error.message};
+    }
+});
+
+ipcMain.handle('clear-all-conversations', async () => {
+    try {
+        if (!chatHistoryManager) return {success: false, error: 'ChatHistoryManager nicht initialisiert'};
+
+        const result = chatHistoryManager.deleteAllConversations();
+        return {success: result};
+    } catch (error) {
+        console.error('Fehler beim Löschen aller Konversationen:', error);
+        return {success: false, error: error.message};
+    }
+});
 
 // App ready
 app.whenReady().then(async () => {

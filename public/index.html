@@ -19,12 +19,6 @@
             <i class="fas fa-robot"></i> KI-Assistant
         </h1>
         <div class="flex items-center gap-3 text-sm">
-            <!-- Modellstatus-Anzeige -->
-            <div id="model-status-indicator" class="flex items-center gap-2 mr-4">
-                <div class="status-dot offline"></div>
-                <span id="model-status-text">Kein Modell geladen</span>
-            </div>
-
             <!-- Web-Suche Dropdown -->
             <div class="flex items-center gap-2">
                 <label for="webSearchMode" class="text-sm">Web-Suche:</label>
@@ -112,6 +106,22 @@
                                 <span class="checkmark"></span>
                             </label>
                             <small class="form-hint">Startet die App automatisch beim Windows-Start.</small>
+                        </div>
+
+                        <div class="form-group mt-4">
+                            <h3 class="text-lg font-medium">Chat-Historie</h3>
+                            <div class="grid grid-cols-2 gap-4 mt-2">
+                                <div>
+                                    <label for="max-history-messages">Max. Nachrichten pro Konversation:</label>
+                                    <input type="number" id="max-history-messages" class="w-full p-2 border border-gray-300 rounded" min="5" max="100" value="20">
+                                    <small class="form-hint">Anzahl der Nachrichten, die pro Konversation gespeichert werden.</small>
+                                </div>
+                                <div>
+                                    <label for="max-conversations">Max. gespeicherte Konversationen:</label>
+                                    <input type="number" id="max-conversations" class="w-full p-2 border border-gray-300 rounded" min="1" max="50" value="10">
+                                    <small class="form-hint">Anzahl der Konversationen, die insgesamt gespeichert werden.</small>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -546,6 +556,63 @@
         </div>
     </div>
 </div>
+
+<!-- Chat History Modal Template -->
+<template id="history-modal-template">
+    <div id="history-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-history"></i> Chat-Verlauf</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="conversations-list" class="max-h-96 overflow-y-auto">
+                    <p class="text-gray-500">Keine Konversationen vorhanden</p>
+                </div>
+            </div>
+            <div class="modal-footer p-4 flex justify-between">
+                <button id="clear-all-conversations" class="danger-button">
+                    <i class="fas fa-trash mr-2"></i> Alle löschen
+                </button>
+                <button id="close-history-modal" class="secondary-button">
+                    Schließen
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Conversation Item Template -->
+<template id="conversation-item-template">
+    <div class="conversation-item border rounded p-3 mb-2 hover:bg-gray-50 cursor-pointer">
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="conversation-title font-medium"></div>
+                <div class="conversation-info text-sm text-gray-600"></div>
+            </div>
+            <div class="flex gap-2">
+                <button class="secondary-button text-sm py-1 px-2 flex items-center justify-center load-conversation-button">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+                <button class="danger-button text-sm py-1 px-2 flex items-center justify-center delete-conversation-button">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Neuer Chat Button für die Header-Leiste -->
+<template id="header-buttons-template">
+    <div class="flex items-center gap-2 ml-4">
+        <button id="new-chat-button" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-1 px-2 rounded flex items-center">
+            <i class="fas fa-plus mr-1"></i> Neuer Chat
+        </button>
+        <button id="history-button" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium py-1 px-2 rounded flex items-center">
+            <i class="fas fa-history mr-1"></i> Verlauf
+        </button>
+    </div>
+</template>
 
 <!-- Notification Template -->
 <div id="notification-container" class="fixed bottom-4 right-4 z-50"></div>

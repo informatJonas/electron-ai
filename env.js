@@ -90,7 +90,17 @@ const store = new Store({
         MODEL_DIR: {
             type: 'string',
             default: 'models'
-        }
+        },
+
+        // Chat-Historie Einstellungen
+        MAX_HISTORY_MESSAGES: {
+            type: 'integer',
+            default: 20
+        },
+        MAX_CONVERSATIONS: {
+            type: 'integer',
+            default: 10
+        },
     }
 });
 
@@ -115,7 +125,10 @@ const defaultConfig = {
     CONTEXT_SIZE: 2048,
     THREADS: 4,
     GPU_LAYERS: 0,
-    MODEL_DIR: 'models'
+    MODEL_DIR: 'models',
+    // Neue Chat-Historie-Einstellungen
+    MAX_HISTORY_MESSAGES: 20,
+    MAX_CONVERSATIONS: 10,
 };
 
 /**
@@ -217,7 +230,10 @@ function getConfig() {
         contextSize: store.get('CONTEXT_SIZE'),
         threads: store.get('THREADS'),
         gpuLayers: store.get('GPU_LAYERS'),
-        modelDir: store.get('MODEL_DIR')
+        modelDir: store.get('MODEL_DIR'),
+        // Neue Chat-Historie-Einstellungen
+        maxHistoryMessages: store.get('MAX_HISTORY_MESSAGES'),
+        maxConversations: store.get('MAX_CONVERSATIONS'),
     };
 }
 

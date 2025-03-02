@@ -149,6 +149,16 @@ class LLMEngine {
             let fullResponse = '';
             const model      = this.model;
 
+            // Abbruch-Signal behandeln
+            if (options.signal) {
+                options.signal.addEventListener('abort', () => {
+                    // Hier könnte man versuchen, die laufende Session zu beenden
+                    // Die genaue Implementierung hängt von der LLM-Bibliothek ab
+                    console.log('LLM Generierung abgebrochen');
+                    // Möglicherweise die Session beenden oder zurücksetzen
+                });
+            }
+
             // Wenn ein Stream-Callback definiert ist, verwenden wir die Streaming-API
             await session.prompt(formattedPrompt, {
                 ...inferenceOptions,
@@ -162,6 +172,11 @@ class LLMEngine {
 
             return fullResponse;
         } catch (error) {
+            // Abbruch abfangen
+            if (error.message === 'AbortError' || error.name === 'AbortError') {
+                throw new Error('AbortError');
+            }
+
             console.error('Fehler bei der Chat-Antwort:', error);
             throw error;
         }
