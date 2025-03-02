@@ -160,10 +160,41 @@ export default class LLMEngine {
             }).join('\n') + '\n<|im_start|>assistant\n';
 
             // Create a chat session
-            const session = new this.llama.LlamaChatSession({
-                contextSequence: this.context.getSequence() ?? await this.model.createContext(),
-                systemPrompt   : this.config.systemPrompt
-            });
+            let session;
+
+            try {
+                // Versuche, eine neue Sequenz zu bekommen
+                const sequence = this.context.getSequence() ?? await this.model.createContext();
+                session = new this.llama.LlamaChatSession({
+                    contextSequence: sequence,
+                    systemPrompt   : this.config.systemPrompt
+                });
+            } catch (error) {
+                // Bei "No sequences left" Fehler: Kontext neu erstellen
+                if (error.message.includes('No sequences left')) {
+                    console.log('No sequences left, recreating context...');
+
+                    // Alten Kontext bereinigen
+                    if (this.context) {
+                        await this.context.dispose();
+                    }
+
+                    // Neuen Kontext erstellen
+                    this.context = await this.model.createContext();
+
+                    // Neue Sequenz und Session erstellen
+                    const newSequence = this.context.getSequence();
+                    session = new this.llama.LlamaChatSession({
+                        contextSequence: newSequence,
+                        systemPrompt   : this.config.systemPrompt
+                    });
+
+                    console.log('Context recreated successfully');
+                } else {
+                    // Andere Fehler weiterwerfen
+                    throw error;
+                }
+            }
 
             let fullResponse = '';
             const model      = this.model;
@@ -187,6 +218,15 @@ export default class LLMEngine {
                     }
                 }
             });
+
+            // Explizit Ressourcen freigeben, um Sequenzen zu bereinigen
+            try {
+                if (session && typeof session.dispose === 'function') {
+                    await session.dispose();
+                }
+            } catch (cleanupError) {
+                console.warn('Warning: Error during session cleanup:', cleanupError);
+            }
 
             return fullResponse;
         } catch (error) {

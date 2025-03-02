@@ -60,12 +60,21 @@ async function sendMessage(startNewConversation = false) {
     isProcessing = true;
     sendButton.disabled = true;
 
+    // Hartcodierter Server-Port, übereinstimmend mit der Konsolenausgabe
+    const SERVER_PORT = 50000;
+
     try {
         // Reset cancel flag
         cancelCurrentRequest = false;
 
-        // Send request to server
-        const response = await fetch('/api/chat', {
+        // Verwende direktes fetch mit hartcodiertem Port, wenn file:// Protokoll
+        const baseUrl = window.location.protocol === 'file:'
+            ? `http://localhost:${SERVER_PORT}`
+            : '';
+
+        console.log(`Sending message to API at ${baseUrl}/api/chat`);
+
+        const response = await fetch(`${baseUrl}/api/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -238,7 +247,7 @@ async function initChatHistory() {
                 chatMessages.innerHTML = '';
 
                 // Add welcome message
-                appendMessage('assistant', 'Hello! I am your AI assistant with web access. How can I help you today?');
+                appendMessage('assistant', 'Hallo! Ich bin dein KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?');
             } else if (chatMessages) {
                 // Show existing messages
                 chatMessages.innerHTML = '';
@@ -322,7 +331,7 @@ async function startNewConversation() {
                 chatMessages.innerHTML = '';
 
                 // Add welcome message
-                appendMessage('assistant', 'Hello! I am your AI assistant with web access. How can I help you today?');
+                appendMessage('assistant', 'Hallo! Ich bin dein KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?');
             }
 
             window.uiUtils.showNotification('New conversation started');

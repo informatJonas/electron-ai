@@ -157,13 +157,6 @@ async function createWindow() {
         return;
     }
 
-    console.log([
-        app.getPath('home'),
-        app.getPath('logs'),
-        app.getPath('temp'),
-        app.getPath('desktop'),
-        app.getPath('module'),
-    ])
     // Create browser window
     mainWindow = new BrowserWindow({
         width          : 1000,
@@ -606,6 +599,53 @@ function registerIPCHandlers() {
     ipcMain.handle('sync-repository', syncRepositoryHandler);
     ipcMain.handle('remove-source', removeSourceHandler);
     ipcMain.handle('get-all-sources', getAllSourcesHandler);
+
+    // ServerPort handler
+    ipcMain.handle('get-server-port', () => {
+        // Priorität:
+        // 1. config.serverPort (aus electron-store)
+        // 2. .env-Datei
+        // 3. Standard-Port 3000
+        const configPort = config.serverPort;
+
+        if (configPort) {
+            const port = parseInt(configPort, 10);
+            if (!isNaN(port)) return port;
+        }
+
+        return readServerPortFromEnv();
+    });
+}
+
+/**
+ * Liest den Server-Port aus der .env-Datei
+ * @returns {number} Der Server-Port
+ */
+function readServerPortFromEnv() {
+    try {
+        // Pfad zur .env-Datei
+        const envPath = path.join(process.cwd(), '.env');
+
+        // Prüfen, ob .env existiert
+        if (fs.existsSync(envPath)) {
+            // Datei lesen
+            const envContent = fs.readFileSync(envPath, 'utf8');
+
+            // Nach SERVER_PORT suchen
+            const portMatch = envContent.match(/SERVER_PORT\s*=\s*(\d+)/);
+
+            if (portMatch && portMatch[1]) {
+                const port = parseInt(portMatch[1], 10);
+                console.log('Found SERVER_PORT in .env:', port);
+                return port;
+            }
+        }
+    } catch (error) {
+        console.error('Error reading .env file:', error);
+    }
+
+    // Standard-Port zurückgeben, wenn nichts gefunden wurde
+    return 3000;
 }
 
 /**

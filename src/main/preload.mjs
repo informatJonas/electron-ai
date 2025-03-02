@@ -128,6 +128,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Cancel current request
     cancelCurrentRequest: () => ipcRenderer.invoke('cancel-current-request'),
-});
 
-console.log(contextBridge)
+    getServerPort: () => {
+        console.log('Preload: getServerPort called, invoking main process');
+        const result = ipcRenderer.invoke('get-server-port');
+        console.log('Preload: getServerPort promise created:', result);
+        return result;
+    },
+});

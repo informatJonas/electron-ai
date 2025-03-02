@@ -58,7 +58,10 @@
     </div>
 
     <div id="status-indicator" class="status">
-        <div class="status-dot offline"></div>
+        <div class="status-dot-wrapper">
+            <div class="ping-element"></div>
+            <div class="status-dot offline"></div>
+        </div>
         <span>Verbindung wird aufgebaut...</span>
     </div>
 </div>
@@ -68,7 +71,6 @@
     <div class="modal-content">
         <div class="modal-header">
             <h2><i class="fas fa-cog"></i> Einstellungen</h2>
-            <span class="close">&times;</span>
         </div>
         <div class="modal-body">
             <div class="settings-tabs">
@@ -506,7 +508,6 @@
     <div class="modal-content">
         <div class="modal-header">
             <h2 id="file-browser-title"><i class="fas fa-folder-open"></i> Datei Browser</h2>
-            <span class="close">&times;</span>
         </div>
         <div class="modal-body">
             <div class="file-browser-nav mb-4">
@@ -563,6 +564,7 @@
 <!-- Main application script -->
 <script src="../js/utils/dom-utils.js"></script>
 <script src="../js/utils/ui-utils.js"></script>
+<script src="../js/utils/api-utils.js"></script>
 <script src="../js/components/chat.js"></script>
 <script src="../js/components/file-browser.js"></script>
 <script src="../js/components/models.js"></script>

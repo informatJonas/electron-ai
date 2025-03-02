@@ -1,15 +1,15 @@
+import axios from 'axios';
 import express from 'express';
 import path from 'path';
-import axios from 'axios';
-import { extractFileReferences } from '../utils/string-utils.js';
-import { fileURLToPath } from 'url';
+import {fileURLToPath} from 'url';
+import {extractFileReferences} from '../utils/string-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname  = path.dirname(__filename);
 
 export function createExpressServer(dependencies) {
-    const expressApp = express();
-    let server = null;
+    const expressApp                = express();
+    let server                      = null;
     let currentGenerationController = null;
 
     if (!dependencies) {
@@ -18,17 +18,30 @@ export function createExpressServer(dependencies) {
     }
 
     const {
-              config = {},
-              mainWindow = null,
-              llmEngine = null,
-              chatHistoryManager = null,
-              duckDuckGoSearch = null,
-              fetchWebContent = null,
+              config              = {},
+              mainWindow          = null,
+              llmEngine           = null,
+              chatHistoryManager  = null,
+              duckDuckGoSearch    = null,
+              fetchWebContent     = null,
               checkLMStudioStatus = null,
-              gitConnector = null
+              gitConnector        = null
           } = dependencies;
 
     expressApp.use(express.json());
+    expressApp.use((req, res, next) => {
+        // CORS-Header für alle Anfragen hinzufügen
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+
+        // Bei OPTIONS-Anfragen sofort antworten
+        if (req.method === 'OPTIONS') {
+            return res.status(200).end();
+        }
+
+        next();
+    });
     expressApp.use(express.static(path.join(__dirname, '../../renderer')));
     expressApp.use(express.static(path.join(__dirname, '../../renderer/html')));
 
@@ -43,7 +56,7 @@ export function createExpressServer(dependencies) {
             if (mainWindow) {
                 mainWindow.webContents.send('processing-status', {
                     status: 'processing-files',
-                    count: fileRefs.length
+                    count : fileRefs.length
                 });
             }
 
@@ -51,7 +64,7 @@ export function createExpressServer(dependencies) {
                 return `${message}\n\nNote: File references were found, but file processing is not available.`;
             }
 
-            let fileContents = '';
+            let fileContents       = '';
             let processedFileCount = 0;
 
             for (const fileRef of fileRefs) {
@@ -160,7 +173,7 @@ export function createExpressServer(dependencies) {
 
     expressApp.post('/api/chat', async (req, res) => {
         try {
-            const { message, webSearchMode, contentUrl, newConversation } = req.body;
+            const {message, webSearchMode, contentUrl, newConversation} = req.body;
 
             if (!message) {
                 return res.status(400).json({
@@ -175,7 +188,7 @@ export function createExpressServer(dependencies) {
             }
 
             currentGenerationController = new AbortController();
-            const signal = currentGenerationController.signal;
+            const signal                = currentGenerationController.signal;
 
             const useLocalLLM = config.useLocalLlm;
 
@@ -209,10 +222,10 @@ export function createExpressServer(dependencies) {
             }
 
             let shouldSearch = false;
-            let urlContent = null;
+            let urlContent   = null;
 
             let processedMessage = message;
-            const fileRefs = extractFileReferences(message);
+            const fileRefs       = extractFileReferences(message);
 
             if (fileRefs.length > 0) {
                 processedMessage = await processFileReferences(message);
@@ -221,7 +234,7 @@ export function createExpressServer(dependencies) {
             let actualMessage = processedMessage;
             if (processedMessage.toLowerCase().startsWith('lokal:')) {
                 actualMessage = processedMessage.substring(6).trim();
-                shouldSearch = false;
+                shouldSearch  = false;
             } else {
                 if (contentUrl && fetchWebContent) {
                     try {
@@ -285,7 +298,7 @@ export function createExpressServer(dependencies) {
                 try {
                     chatHistoryManager.addMessage('user', fullMessage);
                     const messages = chatHistoryManager.getFormattedHistoryForLLM(systemPrompt, true);
-                    messages.push({ role: 'user', content: fullMessage });
+                    messages.push({role: 'user', content: fullMessage});
 
                     let streamContent = '';
 
@@ -296,9 +309,9 @@ export function createExpressServer(dependencies) {
 
                     await llmEngine.generateChatResponse(messages, {
                         temperature: 0.7,
-                        maxTokens: 2048,
-                        stream: true,
-                        onToken: onTokenCallback,
+                        maxTokens  : 2048,
+                        stream     : true,
+                        onToken    : onTokenCallback,
                         signal
                     });
 
@@ -308,7 +321,7 @@ export function createExpressServer(dependencies) {
 
                     if (mainWindow) {
                         mainWindow.webContents.send('model-status', {
-                            status: 'success',
+                            status : 'success',
                             message: 'Response successfully generated'
                         });
                     }
@@ -343,13 +356,13 @@ export function createExpressServer(dependencies) {
 
                     const messagesWithHistory = chatHistoryManager
                         ? chatHistoryManager.getFormattedHistoryForLLM(systemPrompt, true)
-                        : [{ role: 'system', content: systemPrompt }];
+                        : [{role: 'system', content: systemPrompt}];
 
-                    messagesWithHistory.push({ role: 'user', content: fullMessage });
+                    messagesWithHistory.push({role: 'user', content: fullMessage});
 
                     const axiosInstance = axios.create({
-                        baseURL: apiUrl,
-                        timeout: 60000,
+                        baseURL     : apiUrl,
+                        timeout     : 60000,
                         responseType: 'stream',
                         signal
                     });
@@ -357,10 +370,10 @@ export function createExpressServer(dependencies) {
                     let fullResponse = '';
 
                     const response = await axiosInstance.post('', {
-                        model: config.lmStudioModel || 'local-model',
-                        messages: messagesWithHistory,
+                        model      : config.lmStudioModel || 'local-model',
+                        messages   : messagesWithHistory,
                         temperature: 0.7,
-                        stream: true
+                        stream     : true
                     });
 
                     response.data.on('data', (chunk) => {
@@ -410,7 +423,7 @@ export function createExpressServer(dependencies) {
 
                     if (mainWindow) {
                         mainWindow.webContents.send('lm-studio-status', {
-                            status: 'connected',
+                            status : 'connected',
                             message: 'Connected to LM Studio'
                         });
                     }
@@ -426,7 +439,7 @@ export function createExpressServer(dependencies) {
 
                         if (mainWindow) {
                             mainWindow.webContents.send('lm-studio-status', {
-                                status: 'error',
+                                status : 'error',
                                 message: 'Failed to connect to LM Studio'
                             });
                         }

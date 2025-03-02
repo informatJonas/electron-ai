@@ -15,8 +15,10 @@ let sources               = {
  * Initializes the file browser
  */
 function initFileBrowser() {
+    console.log('Initializing file browser component');
+
     // Elements
-    const fileBrowserModal      = document.getElementById('select-folder-button');
+    const fileBrowserModal      = document.getElementById('file-browser-modal');
     const fileBrowserBack       = document.getElementById('file-browser-back');
     const fileSearchInput       = document.getElementById('file-search-input');
     const fileSearchButton      = document.getElementById('file-search-button');
@@ -81,6 +83,7 @@ async function loadSources() {
                 repositories: result.repositories || {},
                 folders     : result.folders || {}
             };
+            console.log('Sources loaded:', sources);
         } else {
             console.error('Error loading sources:', result.error);
         }
@@ -96,6 +99,8 @@ async function loadSources() {
  * @param {string} sourceName - Name of the source
  */
 async function openFileBrowser(sourceId, sourceType, sourceName) {
+    console.log(`Opening file browser for ${sourceType} ${sourceId}: ${sourceName}`);
+
     const fileBrowserModal = document.getElementById('file-browser-modal');
     const fileBrowserTitle = document.getElementById('file-browser-title');
 

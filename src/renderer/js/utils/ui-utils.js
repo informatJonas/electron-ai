@@ -11,15 +11,15 @@ function showNotification(message, type = 'success', duration = 3000) {
     let container = document.getElementById('notification-container');
     if (!container) {
         // Create container if it doesn't exist
-        const newContainer = document.createElement('div');
-        newContainer.id = 'notification-container';
+        const newContainer     = document.createElement('div');
+        newContainer.id        = 'notification-container';
         newContainer.className = 'fixed bottom-4 right-4 z-50';
         document.body.appendChild(newContainer);
         container = newContainer;
     }
 
-    const notification = document.createElement('div');
-    notification.className = `notification ${type === 'error' ? 'error' : type === 'info' ? 'info' : ''}`;
+    const notification       = document.createElement('div');
+    notification.className   = `notification ${type === 'error' ? 'error' : type === 'info' ? 'info' : ''}`;
     notification.textContent = message;
 
     container.appendChild(notification);
@@ -46,14 +46,14 @@ function showNotification(message, type = 'success', duration = 3000) {
 function appendLoading(container) {
     if (!container) return null;
 
-    const loadingElement = document.createElement('div');
+    const loadingElement     = document.createElement('div');
     loadingElement.className = 'message assistant';
 
-    const loadingContent = document.createElement('div');
+    const loadingContent     = document.createElement('div');
     loadingContent.className = 'loading';
 
     for (let i = 0; i < 3; i++) {
-        const dot = document.createElement('div');
+        const dot     = document.createElement('div');
         dot.className = 'loading-dot';
         loadingContent.appendChild(dot);
     }
@@ -73,8 +73,8 @@ function appendLoading(container) {
 function addCopyButtons() {
     document.querySelectorAll('pre code').forEach((codeBlock) => {
         if (!codeBlock.parentNode.querySelector('.copy-button')) {
-            const button = document.createElement('button');
-            button.className = 'copy-button';
+            const button       = document.createElement('button');
+            button.className   = 'copy-button';
             button.textContent = 'Copy';
 
             button.addEventListener('click', () => {
@@ -93,7 +93,7 @@ function addCopyButtons() {
                 });
             });
 
-            const pre = codeBlock.parentNode;
+            const pre          = codeBlock.parentNode;
             pre.style.position = 'relative';
             pre.appendChild(button);
         }
@@ -140,32 +140,59 @@ function createElement(type, className = '', attributes = {}) {
 function updateStatusIndicator(status, message, statusIndicator) {
     if (!statusIndicator) return;
 
-    const statusDot = statusIndicator.querySelector('.status-dot');
-    const statusText = statusIndicator.querySelector('span');
+    const statusDot   = statusIndicator.querySelector('.status-dot');
+    const pingElement = statusIndicator.querySelector('.ping-element');
+    const statusText  = statusIndicator.querySelector('span');
 
     // Ensure the elements exist
     if (!statusDot || !statusText) return;
 
-    // Remove all status classes
-    statusDot.classList.remove('online', 'offline', 'warning');
+    // Remove all status classes and animations
+    statusDot.classList.remove('online', 'offline', 'warning', 'animate-pulse');
 
     // Set appropriate class and message
     switch (status) {
         case 'connected':
         case 'loaded':
+        case 'success':
             statusDot.classList.add('online');
             break;
+
         case 'disconnected':
         case 'error':
             statusDot.classList.add('offline');
             break;
+
         case 'loading':
         case 'downloading':
         case 'warning':
             statusDot.classList.add('warning');
+            // Add a pulse animation for warning status
+            statusDot.classList.add('animate-pulse');
             break;
+
         default:
             statusDot.classList.add('offline');
+    }
+
+    // Update ping element color directly if :has() selector isn't supported in all browsers
+    if (pingElement) {
+        // Reset all possible status-related classes
+        pingElement.classList.remove('ping-online', 'ping-offline', 'ping-warning');
+
+        console.log(status);
+
+        // Add class based on current status
+        if (status === 'connected' || status === 'loaded' || status === 'success') {
+            pingElement.classList.add('ping-online');
+            pingElement.style.backgroundColor = 'var(--success-color)';
+        } else if (status === 'loading' || status === 'downloading' || status === 'warning') {
+            pingElement.classList.add('ping-warning');
+            pingElement.style.backgroundColor = 'var(--warning-color)';
+        } else {
+            pingElement.classList.add('ping-offline');
+            pingElement.style.backgroundColor = 'var(--error-color)';
+        }
     }
 
     statusText.textContent = message;
@@ -181,10 +208,10 @@ function confirmDialog(message, options = {}) {
     return new Promise((resolve) => {
         // Default options
         const settings = {
-            title: options.title || 'Confirmation',
+            title      : options.title || 'Confirmation',
             confirmText: options.confirmText || 'Yes',
-            cancelText: options.cancelText || 'No',
-            dangerous: options.dangerous || false
+            cancelText : options.cancelText || 'No',
+            dangerous  : options.dangerous || false
         };
 
         // Create dialog container
@@ -201,12 +228,12 @@ function confirmDialog(message, options = {}) {
         const header = createElement('div', 'dialog-header', {
             style: `background-color: ${settings.dangerous ? '#ef4444' : '#3b82f6'}; color: white; padding: 16px 20px; border-radius: 0;`
         });
-        header.appendChild(createElement('h3', '', { text: settings.title, style: 'margin: 0; font-size: 1.25rem;' }));
+        header.appendChild(createElement('h3', '', {text: settings.title, style: 'margin: 0; font-size: 1.25rem;'}));
 
         // Body
         const body = createElement('div', 'dialog-body', {
             style: 'padding: 20px;',
-            html: message
+            html : message
         });
 
         // Footer
@@ -216,7 +243,7 @@ function confirmDialog(message, options = {}) {
 
         // Cancel button
         const cancelButton = createElement('button', 'secondary-button', {
-            text: settings.cancelText,
+            text : settings.cancelText,
             style: 'padding: 8px 16px; background-color: #e5e7eb; border: none; border-radius: 0; cursor: pointer;'
         });
         cancelButton.addEventListener('click', () => {
@@ -226,7 +253,7 @@ function confirmDialog(message, options = {}) {
 
         // Confirm button
         const confirmButton = createElement('button', settings.dangerous ? 'danger-button' : 'primary-button', {
-            text: settings.confirmText,
+            text : settings.confirmText,
             style: `padding: 8px 16px; background-color: ${settings.dangerous ? '#ef4444' : '#3b82f6'}; color: white; border: none; border-radius: 0; cursor: pointer;`
         });
         confirmButton.addEventListener('click', () => {
@@ -262,14 +289,14 @@ function formatDate(date, locale = 'de-DE', options = {}) {
 
     // Default options
     const defaultOptions = {
-        year: '2-digit',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
+        year  : '2-digit',
+        month : '2-digit',
+        day   : '2-digit',
+        hour  : '2-digit',
         minute: '2-digit'
     };
 
-    return dateObj.toLocaleString(locale, { ...defaultOptions, ...options });
+    return dateObj.toLocaleString(locale, {...defaultOptions, ...options});
 }
 
 /**
@@ -280,9 +307,9 @@ function formatDate(date, locale = 'de-DE', options = {}) {
  */
 function createProgressIndicator(container, message = 'Loading...') {
     // Create progress elements
-    const wrapper = createElement('div', 'progress-container my-4');
-    const progressBar = createElement('progress', 'w-full', { value: 0, max: 100 });
-    const progressText = createElement('div', 'text-sm text-gray-600 mt-1', { text: message });
+    const wrapper      = createElement('div', 'progress-container my-4');
+    const progressBar  = createElement('progress', 'w-full', {value: 0, max: 100});
+    const progressText = createElement('div', 'text-sm text-gray-600 mt-1', {text: message});
 
     // Assemble
     wrapper.appendChild(progressBar);
@@ -307,9 +334,9 @@ function createProgressIndicator(container, message = 'Loading...') {
          * @param {boolean} success - Whether operation was successful
          */
         complete: (message = 'Complete', success = true) => {
-            progressBar.value = 100;
+            progressBar.value        = 100;
             progressText.textContent = message;
-            progressText.className = `text-sm ${success ? 'text-green-600' : 'text-red-600'} mt-1`;
+            progressText.className   = `text-sm ${success ? 'text-green-600' : 'text-red-600'} mt-1`;
         },
         /**
          * Removes progress indicator

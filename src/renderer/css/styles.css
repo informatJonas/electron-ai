@@ -270,7 +270,7 @@ input:checked + .slider:before {
     cursor: not-allowed;
 }
 
-/* Status indicator */
+/* Status indicator styling */
 .status {
     padding: 10px 16px;
     display: flex;
@@ -281,12 +281,55 @@ input:checked + .slider:before {
     border-top: 1px solid var(--border-color);
 }
 
+/* Status dot wrapper for positioning */
+.status-dot-wrapper {
+    position: relative;
+    width: 8px;
+    height: 8px;
+}
+
+/* Status indicator styling */
+.status {
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--light-text);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Status dot wrapper for positioning */
+.status-dot-wrapper {
+    position: relative;
+    width: 8px;
+    height: 8px;
+}
+
+/* Status dot styling */
 .status-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
+    position: relative;
+    z-index: 2; /* Ensure dot is on top */
 }
 
+/* Ping animation element - Always visible */
+.ping-element {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    transform-origin: center;
+    animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    opacity: 0.75;
+}
+
+/* Status colors */
 .status-dot.online {
     background-color: var(--success-color);
 }
@@ -297,6 +340,36 @@ input:checked + .slider:before {
 
 .status-dot.offline {
     background-color: var(--error-color);
+}
+
+/* Ping element colors matching status */
+/* Default color - matches offline */
+.ping-element {
+    background-color: var(--error-color);
+}
+
+/* When parent has online status */
+.status-dot.online + .ping-element,
+.status-dot-wrapper:has(.status-dot.online) .ping-element {
+    background-color: var(--success-color);
+}
+
+/* When parent has warning status */
+.status-dot.warning + .ping-element,
+.status-dot-wrapper:has(.status-dot.warning) .ping-element {
+    background-color: var(--warning-color);
+}
+
+/* Custom ping animation for perfect control */
+@keyframes ping {
+    0% {
+        transform: scale(1);
+        opacity: 0.75;
+    }
+    75%, 100% {
+        transform: scale(2.5);
+        opacity: 0;
+    }
 }
 
 .tip {
