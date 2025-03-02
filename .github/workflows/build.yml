@@ -77,7 +77,14 @@ jobs:
 
       - name: Update version
         run: |
-          npm version ${{ needs.release.outputs.version }} --no-git-tag-version
+          # Überprüfen Sie zuerst die package.json
+          type package.json
+
+          # Ändern Sie die Version direkt in package.json
+          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = '${{ needs.release.outputs.version }}'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+
+          # Zeigen Sie die aktualisierte Version
+          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); console.log(pkg.version);"
 
       # Build the app for Windows
       - name: Build Windows app
