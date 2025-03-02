@@ -1,10 +1,10 @@
 // src/main/api/express-server.js
 // Express server for API endpoints
 
-const express = require('express');
-const path = require('path');
-const axios = require('axios');
-const { extractFileReferences } = require('../utils/string-utils');
+const express                 = require('express');
+const path                    = require('path');
+const axios                   = require('axios');
+const {extractFileReferences} = require('../utils/string-utils');
 
 /**
  * Creates and configures the Express server
@@ -12,8 +12,8 @@ const { extractFileReferences } = require('../utils/string-utils');
  * @returns {Object} - Express server and setup methods
  */
 function createExpressServer(dependencies) {
-    const expressApp = express();
-    let server = null;
+    const expressApp                = express();
+    let server                      = null;
     let currentGenerationController = null;
 
     // Ensure all dependencies are available
@@ -23,19 +23,20 @@ function createExpressServer(dependencies) {
     }
 
     const {
-              config = {},
-              mainWindow = null,
-              llmEngine = null,
-              chatHistoryManager = null,
-              duckDuckGoSearch = null,
-              fetchWebContent = null,
+              config              = {},
+              mainWindow          = null,
+              llmEngine           = null,
+              chatHistoryManager  = null,
+              duckDuckGoSearch    = null,
+              fetchWebContent     = null,
               checkLMStudioStatus = null,
-              gitConnector = null
+              gitConnector        = null
           } = dependencies;
 
     // Configure middleware
     expressApp.use(express.json());
     expressApp.use(express.static(path.join(__dirname, '../../renderer')));
+    expressApp.use(express.static(path.join(__dirname, '../../renderer/html')));
 
     /**
      * Extract file references from message and process them
@@ -55,7 +56,7 @@ function createExpressServer(dependencies) {
             if (mainWindow) {
                 mainWindow.webContents.send('processing-status', {
                     status: 'processing-files',
-                    count: fileRefs.length
+                    count : fileRefs.length
                 });
             }
 
@@ -64,7 +65,7 @@ function createExpressServer(dependencies) {
                 return `${message}\n\nNote: File references were found, but file processing is not available.`;
             }
 
-            let fileContents = '';
+            let fileContents       = '';
             let processedFileCount = 0;
 
             // Process each file reference
@@ -200,7 +201,7 @@ function createExpressServer(dependencies) {
     // API routes
     expressApp.post('/api/chat', async (req, res) => {
         try {
-            const { message, webSearchMode, contentUrl, newConversation } = req.body;
+            const {message, webSearchMode, contentUrl, newConversation} = req.body;
 
             if (!message) {
                 return res.status(400).json({
@@ -217,7 +218,7 @@ function createExpressServer(dependencies) {
 
             // Create AbortController for the current request
             currentGenerationController = new AbortController();
-            const signal = currentGenerationController.signal;
+            const signal                = currentGenerationController.signal;
 
             // Decide whether to use LM Studio or local LLM
             const useLocalLLM = config.useLocalLlm;
@@ -256,11 +257,11 @@ function createExpressServer(dependencies) {
 
             // Decide whether to perform web search based on mode and message
             let shouldSearch = false;
-            let urlContent = null;
+            let urlContent   = null;
 
             // Check for file references in the text and process them
             let processedMessage = message;
-            const fileRefs = extractFileReferences(message);
+            const fileRefs       = extractFileReferences(message);
 
             if (fileRefs.length > 0) {
                 // Process file references and inject content
@@ -271,7 +272,7 @@ function createExpressServer(dependencies) {
             let actualMessage = processedMessage;
             if (processedMessage.toLowerCase().startsWith('lokal:')) {
                 actualMessage = processedMessage.substring(6).trim();
-                shouldSearch = false; // Always local if explicitly specified
+                shouldSearch  = false; // Always local if explicitly specified
             } else {
                 // Fetch URL content if provided
                 if (contentUrl && fetchWebContent) {
@@ -350,7 +351,7 @@ function createExpressServer(dependencies) {
                     const messages = chatHistoryManager.getFormattedHistoryForLLM(systemPrompt, true);
 
                     // Explicitly add current user message
-                    messages.push({ role: 'user', content: fullMessage });
+                    messages.push({role: 'user', content: fullMessage});
 
                     // Stream results
                     let streamContent = '';
@@ -364,9 +365,9 @@ function createExpressServer(dependencies) {
                     // Generate chat response
                     await llmEngine.generateChatResponse(messages, {
                         temperature: 0.7,
-                        maxTokens: 2048,
-                        stream: true,
-                        onToken: onTokenCallback,
+                        maxTokens  : 2048,
+                        stream     : true,
+                        onToken    : onTokenCallback,
                         signal
                     });
 
@@ -380,7 +381,7 @@ function createExpressServer(dependencies) {
                     // Send status to UI
                     if (mainWindow) {
                         mainWindow.webContents.send('model-status', {
-                            status: 'success',
+                            status : 'success',
                             message: 'Response successfully generated'
                         });
                     }
@@ -422,15 +423,15 @@ function createExpressServer(dependencies) {
                     // Format chat messages for LM Studio
                     const messagesWithHistory = chatHistoryManager
                         ? chatHistoryManager.getFormattedHistoryForLLM(systemPrompt, true)
-                        : [{ role: 'system', content: systemPrompt }];
+                        : [{role: 'system', content: systemPrompt}];
 
                     // Explicitly add current user message
-                    messagesWithHistory.push({ role: 'user', content: fullMessage });
+                    messagesWithHistory.push({role: 'user', content: fullMessage});
 
                     // Axios configuration for streaming
                     const axiosInstance = axios.create({
-                        baseURL: apiUrl,
-                        timeout: 60000, // 60 seconds timeout
+                        baseURL     : apiUrl,
+                        timeout     : 60000, // 60 seconds timeout
                         responseType: 'stream',
                         signal
                     });
@@ -440,10 +441,10 @@ function createExpressServer(dependencies) {
 
                     // Streaming request
                     const response = await axiosInstance.post('', {
-                        model: config.lmStudioModel || 'local-model',
-                        messages: messagesWithHistory,
+                        model      : config.lmStudioModel || 'local-model',
+                        messages   : messagesWithHistory,
                         temperature: 0.7,
-                        stream: true
+                        stream     : true
                     });
 
                     // Stream processing
@@ -493,14 +494,14 @@ function createExpressServer(dependencies) {
                     response.data.on('error', (error) => {
                         console.error('Stream error:', error);
                         if (!res.writableEnded) {
-                            res.status(500).json({ error: 'Streaming error' });
+                            res.status(500).json({error: 'Streaming error'});
                         }
                     });
 
                     // Send status to UI
                     if (mainWindow) {
                         mainWindow.webContents.send('lm-studio-status', {
-                            status: 'connected',
+                            status : 'connected',
                             message: 'Connected to LM Studio'
                         });
                     }
@@ -518,7 +519,7 @@ function createExpressServer(dependencies) {
                         // Send status to UI
                         if (mainWindow) {
                             mainWindow.webContents.send('lm-studio-status', {
-                                status: 'error',
+                                status : 'error',
                                 message: 'Failed to connect to LM Studio'
                             });
                         }
@@ -545,6 +546,10 @@ function createExpressServer(dependencies) {
             // Reset controller when request is complete
             currentGenerationController = null;
         }
+    });
+
+    expressApp.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, '../../renderer/html/index.html'));
     });
 
     /**

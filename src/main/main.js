@@ -193,7 +193,7 @@ async function createWindow() {
     server = await expressServer.startServer(serverPort);
 
     // Load app from Express server
-    await mainWindow.loadURL(`http://localhost:${serverPort}`);
+    await mainWindow.loadURL(`http://localhost:${serverPort}/html/index.html`);
 
     // Show window when ready
     mainWindow.once('ready-to-show', () => {
