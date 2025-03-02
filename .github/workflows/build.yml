@@ -26,6 +26,11 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
       - name: Get version
         id: get_version
         run: |
@@ -35,7 +40,6 @@ jobs:
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           fi
 
-      # Verwendung des gh-Befehls für Release-Erstellung
       - name: Create Release
         id: create_release
         env:
@@ -46,14 +50,10 @@ jobs:
             --draft \
             --title "KI-Assistant v$VERSION" \
             --notes "KI-Assistant Version $VERSION
-
-          ## Änderungen in dieser Version
           
-          _Bitte fügen Sie hier die Änderungen manuell ein._
+            ## Download
           
-          ## Download
-          
-          - Windows: KI-Assistant-Setup-$VERSION.exe"
+            - Windows: KI-Assistant-Setup-$VERSION.exe"
 
   build-windows:
     name: Build Windows
