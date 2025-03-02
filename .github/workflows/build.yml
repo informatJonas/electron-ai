@@ -1,4 +1,4 @@
-name: Build and Release Windows
+name: Build and Release Windows, Linux, and macOS
 
 on:
   workflow_dispatch:
@@ -8,7 +8,6 @@ on:
         required: false
         default: ''
 
-# Explizite Berechtigungen hinzufügen
 permissions:
   contents: write
   packages: write
@@ -17,8 +16,7 @@ permissions:
 
 jobs:
   release:
-    name: Create ReleaseCreates a new GitHub release with the specified version.
-
+    name: Create Release
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -72,24 +70,17 @@ jobs:
 
       - name: Update version
         run: |
-          # Change the version directly in package.json
           node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = '${{ needs.release.outputs.version }}'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
 
-      # Build the app for Windows
       - name: Build Windows app
         run: |
-          # Führen Sie den Build-Befehl aus und zeigen Sie Details
           npm run build:win
-
-          # Zeigen Sie den Inhalt des dist-Verzeichnisses nach dem Build
           dir dist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Package artifacts
       - name: Package Windows artifacts
         run: |
-          # Suchen Sie die Installationsdatei
           $exeFile = Get-ChildItem -Path dist -Recurse -Include "*.exe" | Select-Object -First 1
 
           if ($exeFile) {
@@ -100,14 +91,12 @@ jobs:
             exit 1
           }
 
-      # Upload build artifacts to GitHub
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: KI-Assistant-Setup-${{ needs.release.outputs.version }}
           path: output
 
-      # Upload to release using the gh cli
       - name: Upload release asset
         if: success()
         env:
@@ -123,10 +112,89 @@ jobs:
             exit 1
           }
 
-  # Final job to mark release as ready
+  build-linux:
+    name: Build Linux
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 'latest'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update version
+        run: |
+          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = '${{ needs.release.outputs.version }}'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+
+      - name: Build Linux app
+        run: |
+          npm run build:linux
+          ls dist
+
+      - name: Package Linux artifacts
+        run: |
+          mkdir -p output
+          cp dist/*.AppImage output/KI-Assistant-${{ needs.release.outputs.version }}.AppImage
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KI-Assistant-${{ needs.release.outputs.version }}.AppImage
+          path: output
+
+  build-macos:
+    name: Build macOS
+    needs: release
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 'latest'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update version
+        run: |
+          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = '${{ needs.release.outputs.version }}'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+
+      - name: Build macOS app
+        run: |
+          npm run build:mac
+          ls dist
+
+      - name: Package macOS artifacts
+        run: |
+          mkdir -p output
+          cp dist/*.dmg output/KI-Assistant-${{ needs.release.outputs.version }}.dmg
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KI-Assistant-${{ needs.release.outputs.version }}.dmg
+          path: output
+
   finalize:
     name: Finalize Release
-    needs: [ release, build-windows ]
+    needs: [ release, build-windows, build-linux, build-macos ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
