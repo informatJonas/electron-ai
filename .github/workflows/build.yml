@@ -77,7 +77,7 @@ jobs:
           npm run build:win
           dir dist
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package Windows artifacts
         run: |
@@ -147,6 +147,8 @@ jobs:
         run: |
           npm run build:linux
           ls dist
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package Linux artifacts
         run: |
@@ -187,6 +189,8 @@ jobs:
         run: |
           npm run build:mac
           ls dist
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package macOS artifacts
         run: |
