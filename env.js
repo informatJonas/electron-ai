@@ -10,7 +10,7 @@ const isDevelopment = process.env.NODE_ENV === 'development' || !app;
 
 // Konfiguriere den Electron Store mit explizitem Pfad
 const store = new Store({
-    name: 'lm-studio-assistant-config', // Name der Konfigurationsdatei
+    name: 'ki-assistant-config', // Name der Konfigurationsdatei
     cwd: isDevelopment ? process.cwd() : undefined, // Im Entwicklungsmodus im aktuellen Verzeichnis speichern
     // Definiere Schema für bessere Typisierung (optional)
     schema: {
@@ -65,6 +65,31 @@ const store = new Store({
         UPDATE_SERVER_URL: {
             type: 'string',
             default: ''
+        },
+        // Neue LLM-Einstellungen
+        USE_LOCAL_LLM: {
+            type: 'boolean',
+            default: true
+        },
+        LAST_USED_MODEL: {
+            type: 'string',
+            default: ''
+        },
+        CONTEXT_SIZE: {
+            type: 'integer',
+            default: 2048
+        },
+        THREADS: {
+            type: 'integer',
+            default: 4
+        },
+        GPU_LAYERS: {
+            type: 'integer',
+            default: 0
+        },
+        MODEL_DIR: {
+            type: 'string',
+            default: 'models'
         }
     }
 });
@@ -83,7 +108,14 @@ const defaultConfig = {
     MINIMIZE_TO_TRAY: true,
     START_WITH_WINDOWS: false,
     CHECK_FOR_UPDATES: true,
-    UPDATE_SERVER_URL: ''
+    UPDATE_SERVER_URL: '',
+    // Neue LLM-Einstellungen
+    USE_LOCAL_LLM: true,
+    LAST_USED_MODEL: '',
+    CONTEXT_SIZE: 2048,
+    THREADS: 4,
+    GPU_LAYERS: 0,
+    MODEL_DIR: 'models'
 };
 
 /**
@@ -117,8 +149,6 @@ function loadEnvFile() {
  * Initialisiert die Konfiguration
  */
 function initEnvironment() {
-    console.log('Initialisiere Umgebung mit Store-Pfad:', store.path);
-
     // Stelle sicher, dass der Store immer in einem definierten Zustand ist
     let shouldInitialize = false;
 
@@ -156,8 +186,6 @@ function initEnvironment() {
     }
 
     // Zeige aktuelle Konfiguration im Debug-Modus
-    console.log('Aktuelle Konfiguration:', store.store);
-
     return {
         getConfig,
         updateConfig,
@@ -182,7 +210,14 @@ function getConfig() {
         minimizeToTray: store.get('MINIMIZE_TO_TRAY'),
         startWithWindows: store.get('START_WITH_WINDOWS'),
         checkForUpdates: store.get('CHECK_FOR_UPDATES'),
-        updateServerUrl: store.get('UPDATE_SERVER_URL')
+        updateServerUrl: store.get('UPDATE_SERVER_URL'),
+        // Neue LLM-Einstellungen
+        useLocalLlm: store.get('USE_LOCAL_LLM'),
+        lastUsedModel: store.get('LAST_USED_MODEL'),
+        contextSize: store.get('CONTEXT_SIZE'),
+        threads: store.get('THREADS'),
+        gpuLayers: store.get('GPU_LAYERS'),
+        modelDir: store.get('MODEL_DIR')
     };
 }
 
@@ -191,9 +226,6 @@ function getConfig() {
  */
 function updateConfig(newConfig) {
     // Debug-Ausgabe zu Diagnosezwecken
-    console.log('Aktualisiere Konfiguration:', newConfig);
-    console.log('Store-Pfad:', store.path);
-
     for (const [key, value] of Object.entries(newConfig)) {
         const storeKey = keyToEnvFormat(key);
         if (storeKey in defaultConfig) {
@@ -201,8 +233,6 @@ function updateConfig(newConfig) {
             store.set(storeKey, value);
             // Aktualisiere auch process.env für Kompatibilität
             process.env[storeKey] = value.toString();
-
-            console.log(`Einstellung aktualisiert: ${storeKey} = ${value}`);
         }
     }
 

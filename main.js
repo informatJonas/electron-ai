@@ -1,192 +1,375 @@
+// main.js - Hybrid-Ansatz mit CommonJS und dynamischen Imports für ES-Module
 const {app, BrowserWindow, ipcMain, Menu, Tray, dialog, shell} = require('electron');
 const path                                                     = require('path');
 const express                                                  = require('express');
 const axios                                                    = require('axios');
-const {duckDuckGoSearch, fetchWebContent}                      = require('./search');
-const {checkLMStudioStatus}                                    = require('./lm-studio-connector');
-const env                                                      = require('./env');
+const {searchModels}                                           = require('./huggingface');
+const LLMEngine                                                = require('./llm-engine');
 
-// Konfiguration aus der env-Datei laden
-const config = env.getConfig();
+// Globale Variablen für die Module
+let duckDuckGoSearch, fetchWebContent;
+let checkLMStudioStatus;
+let env;
 
-// Express-Server
+// Globale Variablen für die Anwendung
 const expressApp = express();
 let server;
 let mainWindow;
 let tray;
 let lmStudioCheckInterval;
+let llmEngine;
+let currentModel = null;
+let config       = {};
+
+// Module asynchron laden
+async function loadModules() {
+    try {
+        // Module als ES-Module importieren
+        const searchModule = await import('./search.js');
+        duckDuckGoSearch   = searchModule.duckDuckGoSearch;
+        fetchWebContent    = searchModule.fetchWebContent;
+
+        const lmStudioModule = await import('./lm-studio-connector.js');
+        checkLMStudioStatus  = lmStudioModule.checkLMStudioStatus;
+
+        const envModule = await import('./env.js');
+        env             = envModule.default;
+
+        // Konfiguration laden
+        config = env.getConfig();
+        return true;
+    } catch (error) {
+        console.error('Fehler beim Laden der Module:', error);
+        return false;
+    }
+}
 
 // Express Middleware
 expressApp.use(express.json());
-expressApp.use(express.static(path.join(__dirname, 'public')));
 
 // CORS-Probleme vermeiden
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 
-// Express API-Route mit Streaming
-expressApp.post('/api/chat', async (req, res) => {
+// LLM-Engine initialisieren
+function initLLMEngine() {
+    llmEngine = new LLMEngine(config);
+
+    // Automatisch das zuletzt verwendete Modell laden
+    const lastModel = config.lastUsedModel;
+    if (lastModel && config.useLocalLlm) {
+        loadModel(lastModel);
+    }
+}
+
+// Modell laden
+async function loadModel(modelPath) {
     try {
-        const {message, webSearchMode, contentUrl} = req.body;
-
-        // Entscheide basierend auf dem Modus und der Nachricht, ob eine Websuche durchgeführt werden soll
-        let shouldSearch = false;
-        let urlContent   = null;
-
-        // Lokalen Modus erkennen
-        let actualMessage = message;
-        if (message.toLowerCase().startsWith('lokal:')) {
-            actualMessage = message.substring(6).trim();
-            shouldSearch  = false; // Immer lokal, wenn explizit angegeben
-        } else {
-            // URL-Inhalte abrufen, wenn angegeben
-            if (contentUrl) {
-                try {
-                    urlContent = await fetchWebContent(contentUrl);
-                    actualMessage += `\n\nInhalte von ${contentUrl}:\n${urlContent.mainContent}`;
-                } catch (urlError) {
-                    console.error('Fehler beim Abrufen der URL:', urlError);
-                }
-            }
-
-            // Entscheidung basierend auf dem Websuche-Modus
-            switch (webSearchMode) {
-                case 'always':
-                    shouldSearch = true;
-                    break;
-                case 'never':
-                    shouldSearch = false;
-                    break;
-                case 'auto':
-                    // Hier entscheidet die KI selbst, ob eine Websuche sinnvoll ist
-                    shouldSearch = shouldPerformWebSearch(actualMessage);
-                    break;
-                default:
-                    shouldSearch = true; // Standardmäßig suchen
-            }
+        if (!llmEngine) {
+            console.error('LLM-Engine nicht initialisiert');
+            return false;
         }
 
-        let contextInfo = '';
+        // Status an die UI senden
+        if (mainWindow) {
+            mainWindow.webContents.send('model-status', {
+                status : 'loading',
+                message: `Lade Modell: ${modelPath}`
+            });
+        }
 
-        // Websuche durchführen, wenn aktiviert
-        if (shouldSearch) {
-            try {
-                const searchResults = await duckDuckGoSearch(
-                    actualMessage,
-                    config.maxSearchResults,
-                    config.searchTimeout
-                );
+        // Modell laden
+        const success = await llmEngine.loadModel(modelPath, {
+            contextSize: config.contextSize || 2048,
+            threads    : config.threads || 4,
+            gpuLayers  : config.gpuLayers || 0
+        });
 
-                if (searchResults && searchResults.length > 0) {
-                    contextInfo = 'Hier sind aktuelle Informationen aus dem Internet:\n\n';
+        if (success) {
+            currentModel = modelPath;
 
-                    searchResults.forEach((result, index) => {
-                        contextInfo += `[${index + 1}] ${result.title}\n`;
-                        contextInfo += `URL: ${result.url}\n`;
-                        contextInfo += `Beschreibung: ${result.description}\n\n`;
+            // Config aktualisieren
+            env.updateConfig({
+                lastUsedModel: modelPath
+            });
+
+            // Status an die UI senden
+            if (mainWindow) {
+                mainWindow.webContents.send('model-status', {
+                    status : 'loaded',
+                    message: `Modell geladen: ${modelPath}`,
+                    model  : modelPath
+                });
+            }
+
+            return true;
+        } else {
+            throw new Error(`Modell konnte nicht geladen werden: ${modelPath}`);
+        }
+    } catch (error) {
+        console.error('Fehler beim Laden des Modells:', error);
+
+        // Status an die UI senden
+        if (mainWindow) {
+            mainWindow.webContents.send('model-status', {
+                status : 'error',
+                message: `Fehler beim Laden des Modells: ${error.message}`
+            });
+        }
+
+        return false;
+    }
+}
+
+// Express API-Route mit Streaming (wird nach dem Laden der Module eingerichtet)
+function setupExpressRoutes() {
+    expressApp.use(express.static(path.join(__dirname, 'public')));
+
+    expressApp.post('/api/chat', async (req, res) => {
+        try {
+            const {message, webSearchMode, contentUrl} = req.body;
+
+            // Entscheidung: LM Studio oder lokales LLM verwenden
+            const useLocalLLM = config.useLocalLlm;
+
+            if (useLocalLLM) {
+                // Prüfen, ob ein Modell geladen ist
+                if (!currentModel) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Es ist kein Modell geladen. Bitte laden Sie zuerst ein Modell.'
                     });
                 }
-            } catch (searchError) {
-                console.error('Fehler bei der Websuche:', searchError);
+            } else {
+                // LM Studio URL überprüfen und Verbindung testen
+                const lmStudioStatus = await checkLMStudioStatus(config.lmStudioUrl);
+                if (!lmStudioStatus) {
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Verbindung zu LM Studio fehlgeschlagen. Bitte stelle sicher, dass LM Studio läuft.'
+                    });
+                }
             }
-        }
 
-        // System-Prompt und LM Studio URL aus den Einstellungen laden
-        const systemPrompt = config.systemPrompt;
-        // URL korrekt formatieren - IPv4 bevorzugen
-        let apiUrl         = config.lmStudioUrl;
-        if (apiUrl.includes('localhost')) {
-            apiUrl = apiUrl.replace('localhost', '127.0.0.1');
-        }
-        apiUrl = `${apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl}/v1/chat/completions`;
+            // Entscheide basierend auf dem Modus und der Nachricht, ob eine Websuche durchgeführt werden soll
+            let shouldSearch = false;
+            let urlContent   = null;
 
-        // Vollständiger Prompt mit Kontext
-        const fullMessage = contextInfo
-            ? `${contextInfo}\nFrage: ${actualMessage}`
-            : actualMessage;
-
-        // Streaming-Header setzen
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-open');
-
-        // Axios-Konfiguration für Streaming
-        const axiosInstance = axios.create({
-            baseURL     : apiUrl,
-            timeout     : 60000, // 60 Sekunden Timeout
-            responseType: 'stream'
-        });
-
-        // Streaming-Request
-        const response = await axiosInstance.post('', {
-            model      : config.lmStudioModel,
-            messages   : [
-                {role: 'system', content: systemPrompt},
-                {role: 'user', content: fullMessage}
-            ],
-            temperature: 0.7,
-            stream     : true
-        });
-
-        // Stream-Verarbeitung
-        response.data.on('data', (chunk) => {
-            const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
-
-            lines.forEach((line) => {
-                if (line.startsWith('data: ')) {
+            // Lokalen Modus erkennen
+            let actualMessage = message;
+            if (message.toLowerCase().startsWith('lokal:')) {
+                actualMessage = message.substring(6).trim();
+                shouldSearch  = false; // Immer lokal, wenn explizit angegeben
+            } else {
+                // URL-Inhalte abrufen, wenn angegeben
+                if (contentUrl) {
                     try {
-                        const jsonStr = line.substring(6);
-                        if (jsonStr !== '[DONE]') {
-                            const parsed = JSON.parse(jsonStr);
-                            if (parsed.choices && parsed.choices[0].delta.content) {
-                                const content = parsed.choices[0].delta.content;
-                                res.write(`data: ${JSON.stringify(content)}\n\n`);
+                        urlContent = await fetchWebContent(contentUrl);
+                        actualMessage += `\n\nInhalte von ${contentUrl}:\n${urlContent.mainContent}`;
+                    } catch (urlError) {
+                        console.error('Fehler beim Abrufen der URL:', urlError);
+                    }
+                }
+
+                // Entscheidung basierend auf dem Websuche-Modus
+                switch (webSearchMode) {
+                    case 'always':
+                        shouldSearch = true;
+                        break;
+                    case 'never':
+                        shouldSearch = false;
+                        break;
+                    case 'auto':
+                        // Hier entscheidet die KI selbst, ob eine Websuche sinnvoll ist
+                        shouldSearch = shouldPerformWebSearch(actualMessage);
+                        break;
+                    default:
+                        shouldSearch = true; // Standardmäßig suchen
+                }
+            }
+
+            let contextInfo = '';
+
+            // Websuche durchführen, wenn aktiviert
+            if (shouldSearch) {
+                try {
+                    const searchResults = await duckDuckGoSearch(
+                        actualMessage,
+                        config.maxSearchResults,
+                        config.searchTimeout
+                    );
+
+                    if (searchResults && searchResults.length > 0) {
+                        contextInfo = 'Hier sind aktuelle Informationen aus dem Internet:\n\n';
+
+                        searchResults.forEach((result, index) => {
+                            contextInfo += `[${index + 1}] ${result.title}\n`;
+                            contextInfo += `URL: ${result.url}\n`;
+                            contextInfo += `Beschreibung: ${result.description}\n\n`;
+                        });
+                    }
+                } catch (searchError) {
+                    console.error('Fehler bei der Websuche:', searchError);
+                }
+            }
+
+            // System-Prompt und LM Studio URL aus den Einstellungen laden
+            const systemPrompt = config.systemPrompt;
+
+            // Vollständiger Prompt mit Kontext
+            const fullMessage = contextInfo
+                ? `${contextInfo}\nFrage: ${actualMessage}`
+                : actualMessage;
+
+            // Streaming-Header setzen
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-open');
+
+            // Verarbeitungsweg basierend auf Konfiguration wählen
+            if (useLocalLLM) {
+                // ***** Lokales LLM verwenden *****
+                try {
+                    // Chat-Nachrichten vorbereiten
+                    const messages = [
+                        {role: 'system', content: systemPrompt},
+                        {role: 'user', content: fullMessage}
+                    ];
+
+                    // Ergebnisse streamen
+                    let streamContent = '';
+
+                    // Stream-Funktion
+                    const onTokenCallback = (token) => {
+                        streamContent += token;
+                        res.write(`data: ${JSON.stringify(token)}\n\n`);
+                    };
+
+                    // Chat-Antwort generieren
+                    await llmEngine.generateChatResponse(messages, {
+                        temperature: 0.7,
+                        maxTokens  : 2048,
+                        stream     : true,
+                        onToken    : onTokenCallback
+                    });
+
+                    // Stream beenden
+                    res.write('event: done\ndata: END\n\n');
+                    res.end();
+
+                    // Status an die UI senden
+                    mainWindow.webContents.send('model-status', {
+                        status : 'success',
+                        message: 'Antwort erfolgreich generiert'
+                    });
+                } catch (error) {
+                    console.error('Fehler bei der LLM-Generierung:', error);
+
+                    if (!res.writableEnded) {
+                        res.status(500).json({
+                            success: false,
+                            message: `Fehler bei der Antwortgenerierung: ${error.message}`
+                        });
+                    }
+                }
+            } else {
+                // ***** LM Studio verwenden *****
+                try {
+                    // URL korrekt formatieren - IPv4 bevorzugen
+                    let apiUrl = config.lmStudioUrl;
+                    if (apiUrl.includes('localhost')) {
+                        apiUrl = apiUrl.replace('localhost', '127.0.0.1');
+                    }
+                    apiUrl = `${apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl}/v1/chat/completions`;
+
+                    // Axios-Konfiguration für Streaming
+                    const axiosInstance = axios.create({
+                        baseURL     : apiUrl,
+                        timeout     : 60000, // 60 Sekunden Timeout
+                        responseType: 'stream'
+                    });
+
+                    // Streaming-Request
+                    const response = await axiosInstance.post('', {
+                        model      : config.lmStudioModel,
+                        messages   : [
+                            {role: 'system', content: systemPrompt},
+                            {role: 'user', content: fullMessage}
+                        ],
+                        temperature: 0.7,
+                        stream     : true
+                    });
+
+                    // Stream-Verarbeitung
+                    response.data.on('data', (chunk) => {
+                        const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
+
+                        lines.forEach((line) => {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const jsonStr = line.substring(6);
+                                    if (jsonStr !== '[DONE]') {
+                                        const parsed = JSON.parse(jsonStr);
+                                        if (parsed.choices && parsed.choices[0].delta.content) {
+                                            const content = parsed.choices[0].delta.content;
+                                            res.write(`data: ${JSON.stringify(content)}\n\n`);
+                                        }
+                                    } else {
+                                        res.write('event: done\ndata: END\n\n');
+                                        res.end();
+                                    }
+                                } catch (parseError) {
+                                    console.error('Parsing error:', parseError);
+                                }
                             }
-                        } else {
+                        });
+                    });
+
+                    response.data.on('end', () => {
+                        if (!res.writableEnded) {
                             res.write('event: done\ndata: END\n\n');
                             res.end();
                         }
-                    } catch (parseError) {
-                        console.error('Parsing error:', parseError);
+                    });
+
+                    response.data.on('error', (error) => {
+                        console.error('Stream error:', error);
+                        if (!res.writableEnded) {
+                            res.status(500).json({error: 'Streaming error'});
+                        }
+                    });
+
+                    // Status an die UI senden
+                    mainWindow.webContents.send('lm-studio-status', {
+                        status : 'connected',
+                        message: 'Verbunden mit LM Studio'
+                    });
+                } catch (error) {
+                    console.error('Fehler bei der LM Studio-Anfrage:', error);
+
+                    // Status an die UI senden
+                    mainWindow.webContents.send('lm-studio-status', {
+                        status : 'error',
+                        message: 'Verbindung zu LM Studio fehlgeschlagen'
+                    });
+
+                    if (!res.writableEnded) {
+                        res.status(500).json({
+                            success: false,
+                            message: 'Es gab ein Problem bei der Verarbeitung deiner Anfrage. Stelle sicher, dass LM Studio läuft und der API-Server gestartet ist.'
+                        });
                     }
                 }
+            }
+        } catch (error) {
+            console.error('Fehler bei der Verarbeitung der Anfrage:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Es gab ein Problem bei der Verarbeitung deiner Anfrage.'
             });
-        });
-
-        response.data.on('end', () => {
-            if (!res.writableEnded) {
-                res.write('event: done\ndata: END\n\n');
-                res.end();
-            }
-        });
-
-        response.data.on('error', (error) => {
-            console.error('Stream error:', error);
-            if (!res.writableEnded) {
-                res.status(500).json({error: 'Streaming error'});
-            }
-        });
-
-        // Status an die UI senden
-        mainWindow.webContents.send('lm-studio-status', {
-            status : 'connected',
-            message: 'Verbunden mit LM Studio'
-        });
-
-    } catch (error) {
-        console.error('Fehler bei der Verarbeitung der Anfrage:', error);
-
-        // Status an die UI senden
-        mainWindow.webContents.send('lm-studio-status', {
-            status : 'error',
-            message: 'Verbindung zu LM Studio fehlgeschlagen'
-        });
-
-        res.status(500).json({
-            success: false,
-            message: 'Es gab ein Problem bei der Verarbeitung deiner Anfrage. Stelle sicher, dass LM Studio läuft und der API-Server gestartet ist.'
-        });
-    }
-});
+        }
+    });
+}
 
 /**
  * Entscheidet, ob für eine bestimmte Nachricht eine Websuche durchgeführt werden sollte
@@ -268,7 +451,19 @@ function shouldPerformWebSearch(message) {
 }
 
 // Electron App erstellen
-function createWindow() {
+async function createWindow() {
+    // Warte auf das Laden der Module
+    const modulesLoaded = await loadModules();
+
+    if (!modulesLoaded) {
+        console.error('Konnte Module nicht laden, beende Anwendung');
+        app.quit();
+        return;
+    }
+
+    // Express-Routen einrichten
+    setupExpressRoutes();
+
     mainWindow = new BrowserWindow({
         width          : 1000,
         height         : 800,
@@ -281,14 +476,14 @@ function createWindow() {
             enableRemoteModules: true,
         },
         icon           : path.join(__dirname, 'assets/icons/icon.png'),
-        title          : 'LM Studio Web-Assistent',
+        title          : 'KI-Assistant',
         show           : false, // Erst anzeigen, wenn geladen
         backgroundColor: '#f8fafc'
     });
 
     // Express-Server starten
     server = expressApp.listen(config.serverPort, () => {
-        console.log(`Express-Server läuft auf Port ${config.serverPort}`);
+        console.log(`Express-Server running on port ${config.serverPort}`);
 
         // Lade die App aus dem Express-Server
         mainWindow.loadURL(`http://localhost:${config.serverPort}`);
@@ -296,7 +491,13 @@ function createWindow() {
         // Show window when ready
         mainWindow.once('ready-to-show', () => {
             mainWindow.show();
-            checkLMStudioConnection();
+
+            // LLM-Engine initialisieren oder LM Studio-Status prüfen
+            if (config.useLocalLlm) {
+                initLLMEngine();
+            } else {
+                checkLMStudioConnection();
+            }
         });
     });
 
@@ -308,8 +509,10 @@ function createWindow() {
         createTray();
     }
 
-    // LM Studio Status-Prüfung starten
-    startLMStudioCheck();
+    // LM Studio Status-Prüfung starten, wenn nicht lokales LLM verwendet wird
+    if (!config.useLocalLlm && config.autoCheckLmStudio) {
+        startLMStudioCheck();
+    }
 
     // Event Handler
     mainWindow.on('closed', () => {
@@ -338,8 +541,14 @@ function createMenu() {
                 },
                 {type: 'separator'},
                 {
-                    label: 'LM Studio öffnen',
-                    click: openLMStudio
+                    label: 'Modelle verwalten',
+                    click: showModels
+                },
+                {type: 'separator'},
+                {
+                    label  : 'LM Studio öffnen',
+                    visible: !config.useLocalLlm,
+                    click  : openLMStudio
                 },
                 {type: 'separator'},
                 {
@@ -391,12 +600,6 @@ function createMenu() {
             label  : 'Hilfe',
             submenu: [
                 {
-                    label: 'LM Studio Website',
-                    click: () => {
-                        shell.openExternal('https://lmstudio.ai/');
-                    }
-                },
-                {
                     label: 'Über',
                     click: showAbout
                 }
@@ -423,8 +626,14 @@ function createTray() {
         },
         {type: 'separator'},
         {
-            label: 'LM Studio öffnen',
-            click: openLMStudio
+            label  : 'LM Studio öffnen',
+            visible: !config.useLocalLlm,
+            click  : openLMStudio
+        },
+        {
+            label  : 'Modelle verwalten',
+            visible: config.useLocalLlm,
+            click  : showModels
         },
         {type: 'separator'},
         {
@@ -435,7 +644,7 @@ function createTray() {
         }
     ]);
 
-    tray.setToolTip('LM Studio Web-Assistent');
+    tray.setToolTip('KI-Assistant');
     tray.setContextMenu(contextMenu);
 
     tray.on('click', () => {
@@ -458,8 +667,7 @@ function startLMStudioCheck() {
 
 // LM Studio Connection prüfen
 async function checkLMStudioConnection() {
-    if (!mainWindow) {
-        console.error('MAIN: Kein MainWindow vorhanden');
+    if (!mainWindow || config.useLocalLlm) {
         return;
     }
 
@@ -475,16 +683,10 @@ async function checkLMStudioConnection() {
                 : 'LM Studio nicht erreichbar'
         };
 
-        console.log('MAIN: Sende Status-Nachricht:', statusMessage);
-
         // Zusätzliche Überprüfungen vor dem Senden
         if (mainWindow && !mainWindow.isDestroyed()) {
-            // Verwenden Sie webContents.send statt mainWindow.webContents.send
             mainWindow.webContents.send('lm-studio-status', statusMessage);
-        } else {
-            console.error('MAIN: MainWindow ist zerstört oder nicht verfügbar');
         }
-
     } catch (error) {
         console.error('MAIN: Fehler bei der Verbindungsprüfung:', error);
     }
@@ -530,6 +732,13 @@ function showSettings() {
     mainWindow.webContents.send('show-settings', config);
 }
 
+// Modelle anzeigen
+function showModels() {
+    if (!mainWindow) return;
+
+    mainWindow.webContents.send('show-models-tab');
+}
+
 // Einstellungen zurücksetzen
 function resetSettings() {
     const response = dialog.showMessageBoxSync(mainWindow, {
@@ -556,9 +765,9 @@ function resetSettings() {
 function showAbout() {
     dialog.showMessageBox(mainWindow, {
         type   : 'info',
-        title  : 'Über LM Studio Web-Assistent',
-        message: 'LM Studio Web-Assistent',
-        detail : 'Version 1.0.0\n\nEine Desktop-Anwendung, die LM Studio mit Websuche verbindet.\n\nEntwickelt mit Electron und Node.js.',
+        title  : 'Über KI-Assistant',
+        message: 'KI-Assistant',
+        detail : 'Version 2.0.0\n\nEine Desktop-Anwendung mit integriertem LLM und Websuche.\n\nEntwickelt mit Electron und Node.js.',
         buttons: ['OK']
     });
 }
@@ -574,27 +783,45 @@ function stopServer() {
         clearInterval(lmStudioCheckInterval);
         lmStudioCheckInterval = null;
     }
+
+    // Modell schließen, wenn vorhanden
+    if (llmEngine && llmEngine.model) {
+        llmEngine.model = null;
+    }
 }
 
 // App ready
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     // IPC-Hauptprozess-Handler registrieren
     ipcMain.handle('save-settings', async (event, newSettings) => {
         try {
-            console.log('Einstellungen speichern:', newSettings);
             const updatedConfig = env.updateConfig(newSettings);
 
             // Sofort nach dem Speichern die Einstellungen neu laden und überprüfen
             const currentConfig = env.getConfig();
+            config              = currentConfig; // Lokale Config aktualisieren
 
-            console.log('Einstellungen gespeichert. Aktualisierte Konfiguration:', currentConfig);
+            // LLM-Modusänderung prüfen
+            if (currentConfig.useLocalLlm !== config.useLocalLlm) {
+                if (currentConfig.useLocalLlm) {
+                    // Wechsel zu lokalem LLM
+                    if (lmStudioCheckInterval) {
+                        clearInterval(lmStudioCheckInterval);
+                        lmStudioCheckInterval = null;
+                    }
 
-            // Überprüfe, ob alle Werte korrekt gespeichert wurden
-            for (const [key, value] of Object.entries(newSettings)) {
-                const configKey = key;
-                if (currentConfig[configKey] !== value) {
-                    console.warn(`Warnung: Konfigurationswert wurde nicht korrekt gespeichert: ${key}`);
-                    console.warn(`Erwartet: ${value}, Tatsächlich: ${currentConfig[configKey]}`);
+                    // LLM-Engine initialisieren, wenn noch nicht geschehen
+                    if (!llmEngine) {
+                        initLLMEngine();
+                    }
+                } else {
+                    // Wechsel zu LM Studio
+                    if (!lmStudioCheckInterval && currentConfig.autoCheckLmStudio) {
+                        startLMStudioCheck();
+                    }
+
+                    // Sofortige Verbindungsprüfung
+                    checkLMStudioConnection();
                 }
             }
 
@@ -607,9 +834,7 @@ app.whenReady().then(() => {
 
     ipcMain.handle('get-settings', async () => {
         try {
-            const currentConfig = env.getConfig();
-            console.log('Aktuelle Einstellungen abgerufen:', currentConfig);
-            return currentConfig;
+            return env.getConfig();
         } catch (error) {
             console.error('Fehler beim Abrufen der Einstellungen:', error);
             return null;
@@ -620,6 +845,7 @@ app.whenReady().then(() => {
         try {
             console.log('Einstellungen zurücksetzen...');
             const newConfig = env.resetToDefaults();
+            config          = newConfig; // Lokale Config aktualisieren
             console.log('Einstellungen zurückgesetzt:', newConfig);
             return {success: true, config: newConfig};
         } catch (error) {
@@ -650,6 +876,110 @@ app.whenReady().then(() => {
         }
     });
 
+    // LLM-Modellverwaltung
+    ipcMain.handle('get-available-models', async () => {
+        try {
+            if (!llmEngine) {
+                if (config.useLocalLlm) {
+                    initLLMEngine();
+                } else {
+                    return {success: false, error: 'Lokales LLM ist deaktiviert'};
+                }
+            }
+
+            const models = await llmEngine.getAvailableModels();
+            return {success: true, models, currentModel};
+        } catch (error) {
+            console.error('Fehler beim Abrufen der Modelle:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    ipcMain.handle('load-model', async (event, modelPath) => {
+        try {
+            if (!config.useLocalLlm) {
+                return {success: false, error: 'Lokales LLM ist deaktiviert'};
+            }
+
+            const success = await loadModel(modelPath);
+            return {success, model: modelPath};
+        } catch (error) {
+            console.error('Fehler beim Laden des Modells:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    ipcMain.handle('download-model', async (event, {url, modelName}) => {
+        try {
+            if (!llmEngine) {
+                if (config.useLocalLlm) {
+                    initLLMEngine();
+                } else {
+                    return {success: false, error: 'Lokales LLM ist deaktiviert'};
+                }
+            }
+
+            // Status an die UI senden
+            mainWindow.webContents.send('model-status', {
+                status : 'downloading',
+                message: `Lade Modell herunter: ${modelName}`
+            });
+
+            await llmEngine.downloadModel(url, modelName, mainWindow);
+
+            // Status an die UI senden
+            mainWindow.webContents.send('model-status', {
+                status : 'downloaded',
+                message: `Modell heruntergeladen: ${modelName}`
+            });
+
+            return {success: true, modelName};
+        } catch (error) {
+            console.error('Fehler beim Herunterladen des Modells:', error);
+
+            // Status an die UI senden
+            mainWindow.webContents.send('model-status', {
+                status : 'error',
+                message: `Fehler beim Herunterladen des Modells: ${error.message}`
+            });
+
+            return {success: false, error: error.message};
+        }
+    });
+
+    ipcMain.handle('delete-model', async (event, modelName) => {
+        try {
+            if (!llmEngine) {
+                return {success: false, error: 'LLM-Engine nicht initialisiert'};
+            }
+
+            await llmEngine.deleteModel(modelName);
+
+            // Status an die UI senden
+            mainWindow.webContents.send('model-status', {
+                status : 'deleted',
+                message: `Modell gelöscht: ${modelName}`
+            });
+
+            return {success: true};
+        } catch (error) {
+            console.error('Fehler beim Löschen des Modells:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    ipcMain.handle('search-huggingface-models', async (event, query) => {
+        try {
+            console.log(`Suche nach Hugging Face Modellen: "${query}"`);
+            const models = await searchModels(query);
+            return {success: true, models};
+        } catch (error) {
+            console.error('Fehler bei der Modellsuche:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    // Fenster erstellen
     createWindow();
 
     // Autostart mit Windows einrichten (wenn aktiviert)
@@ -677,8 +1007,7 @@ app.on('before-quit', () => {
     stopServer();
 });
 
-// Export für Modul-Kompatibilität
+// Für CommonJS-Kompatibilität
 module.exports = {
-    createWindow,
-    checkLMStudioConnection
+    app
 };

@@ -109,7 +109,7 @@ async function fallbackSearch(query, maxResults = 3, timeout = 5000) {
  * Lädt den Inhalt einer Webseite und extrahiert den Haupttext
  * @param {string} url - URL der Webseite
  * @param {number} timeout - Timeout für die Anfrage in ms
- * @returns {Promise<string>} - Extrahierter Text
+ * @returns {Promise<object>} - Objekt mit extrahiertem Text
  */
 async function fetchWebContent(url, timeout = 5000) {
     try {
@@ -138,14 +138,17 @@ async function fetchWebContent(url, timeout = 5000) {
             .replace(/\s+/g, ' ')
             .trim();
 
-        return text.substring(0, 2000); // Limitiere auf 2000 Zeichen
+        return {
+            mainContent: text.substring(0, 2000) // Limitiere auf 2000 Zeichen
+        };
     } catch (error) {
         console.error('Fehler beim Abrufen von Webinhalten:', error.message);
-        return '';
+        return {
+            mainContent: ''
+        };
     }
 }
 
-// Exportiere die Funktionen
 module.exports = {
     duckDuckGoSearch,
     fetchWebContent

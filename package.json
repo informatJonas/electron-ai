@@ -1,17 +1,17 @@
 {
-  "name": "lm-studio-assistant",
-  "productName": "LM Studio Web-Assistent",
-  "version": "1.0.0",
-  "description": "Eine Electron-App, die LM Studio mit Websuche verbindet",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "dev": "electron . --debug",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win",
+  "name"           : "ki-assistant",
+  "productName"    : "KI-Assistant",
+  "version"        : "1.0.0",
+  "description"    : "Eine Electron-App, die LM Studio mit Websuche verbindet",
+  "main"           : "main.js",
+  "scripts"        : {
+    "start"      : "electron .",
+    "dev"        : "electron . --debug",
+    "build"      : "electron-builder",
+    "build:win"  : "electron-builder --win",
     "postinstall": "electron-builder install-app-deps"
   },
-  "keywords": [
+  "keywords"       : [
     "lm-studio",
     "llm",
     "ai",
@@ -19,37 +19,40 @@
     "web-search",
     "electron"
   ],
-  "author": {
-    "name": "LM Studio Web-Assistent",
+  "author"         : {
+    "name" : "KI-Assistant",
     "email": ""
   },
-  "license": "MIT",
-  "dependencies": {
-    "axios": "^1.6.2",
-    "cheerio": "^1.0.0-rc.12",
-    "dotenv": "^16.0.3",
+  "license"        : "MIT",
+  "dependencies"   : {
+    "adm-zip"       : "^0.5.16",
+    "axios"         : "^1.8.1",
+    "cheerio"       : "^1.0.0-rc.12",
+    "dotenv"        : "^16.0.3",
+    "electron-dl"   : "^4.0.0",
     "electron-store": "^8.1.0",
-    "express": "^4.18.2",
-    "highlight.js": "^11.11.1",
-    "markdown-it": "^14.1.0",
-    "socket.io": "^4.8.1"
+    "express"       : "^4.18.2",
+    "highlight.js"  : "^11.11.1",
+    "markdown-it"   : "^14.1.0",
+    "node-llama-cpp": "^3.6.0",
+    "socket.io"     : "^4.8.1"
   },
   "devDependencies": {
-    "electron": "^25.8.4",
+    "electron"        : "^25.8.4",
     "electron-builder": "^24.6.4"
   },
-  "build": {
-    "appId": "com.lmstudio.assistant",
-    "productName": "LM Studio Web-Assistent",
-    "directories": {
+  "build"          : {
+    "appId"         : "com.ki.assistant",
+    "productName"   : "KI-Assistant",
+    "directories"   : {
       "output": "dist"
     },
-    "files": [
+    "files"         : [
       "**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*/.bin",
-      "!**/dist/**/*",
+      "!/dist/**/*",
       "!**/.git/**/*",
       "!**/.vscode/**/*",
       "!**/{.DS_Store,.git,.gitattributes,.gitignore}"
@@ -57,24 +60,50 @@
     "extraResources": [
       {
         "from": ".env",
-        "to": ".env"
+        "to"  : ".env"
       }
     ],
-    "win": {
+    "extraFiles"    : [
+      {
+        "from"  : "models",
+        "to"    : "resources/models",
+        "filter": [
+          "**/*.gguf",
+          "**/*.bin"
+        ]
+      }
+    ],
+    "win"           : {
       "target": [
         "nsis"
       ],
-      "icon": "assets/icons/icon.ico"
+      "icon"  : "assets/icons/icon.ico"
     },
-    "nsis": {
-      "oneClick": false,
+    "mac"           : {
+      "target"  : [
+        "dmg"
+      ],
+      "icon"    : "assets/icons/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "linux"         : {
+      "target"  : [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    },
+    "nsis"          : {
+      "oneClick"                          : false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "LM Studio Web-Assistent"
+      "createDesktopShortcut"             : true,
+      "createStartMenuShortcut"           : true,
+      "shortcutName"                      : "KI-Assistant"
     },
-    "asarUnpack"          : [
-      "**/node_modules/axios/**"
+    "asar"          : true,
+    "asarUnpack"    : [
+      "node_modules/axios/**",
+      "node_modules/follow-redirects/**"
     ]
   }
 }

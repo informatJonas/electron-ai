@@ -161,8 +161,14 @@ input:checked + .slider:before {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .message-content {
@@ -186,13 +192,13 @@ input:checked + .slider:before {
 
 .assistant .message-content {
     background-color: var(--assistant-bg);
-    border-radius: 12px 12px 12px 0;
+    border-radius: 0;
 }
 
 .user .message-content {
     background-color: var(--user-bg);
     color: var(--text-color);
-    border-radius: 12px 12px 0 12px;
+    border-radius: 0;
 }
 
 .chat-input-container {
@@ -208,7 +214,7 @@ input:checked + .slider:before {
     flex: 1;
     padding: 12px 16px;
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 0;
     resize: none;
     outline: none;
     font-size: 1rem;
@@ -224,7 +230,7 @@ input:checked + .slider:before {
     background-color: var(--primary-color);
     color: white;
     border: none;
-    border-radius: 50%;
+    border-radius: 0;
     width: 44px;
     height: 44px;
     display: flex;
@@ -322,8 +328,12 @@ code {
 }
 
 @keyframes bounce {
-    0%, 80%, 100% { transform: scale(0); }
-    40% { transform: scale(1.0); }
+    0%, 80%, 100% {
+        transform: scale(0);
+    }
+    40% {
+        transform: scale(1.0);
+    }
 }
 
 /* Modal styles */
@@ -343,8 +353,8 @@ code {
     background-color: var(--card-color);
     margin: 10% auto;
     width: 80%;
-    max-width: 600px;
-    border-radius: 8px;
+    max-width: 1000px;
+    border-radius: 0;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     animation: slideIn 0.3s;
     max-height: 80vh;
@@ -353,15 +363,21 @@ code {
 }
 
 @keyframes slideIn {
-    from { transform: translateY(-50px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 .modal-header {
     background-color: var(--primary-color);
     color: white;
     padding: 16px 20px;
-    border-radius: 8px 8px 0 0;
+    border-radius: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -403,7 +419,7 @@ code {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: 0;
     font-size: 1rem;
 }
 
@@ -432,7 +448,7 @@ code {
 .secondary-button,
 .danger-button {
     padding: 10px 16px;
-    border-radius: 4px;
+    border-radius: 0;
     font-size: 1rem;
     cursor: pointer;
     border: none;
@@ -465,6 +481,11 @@ code {
     background-color: #dc2626;
 }
 
+.danger-button:disabled {
+    background-color: #f87171;
+    cursor: not-allowed;
+}
+
 /* Checkbox styling */
 .checkbox-container {
     display: block;
@@ -491,7 +512,7 @@ code {
     height: 25px;
     width: 25px;
     background-color: #eee;
-    border-radius: 4px;
+    border-radius: 0;
 }
 
 .checkbox-container:hover input ~ .checkmark {
@@ -581,7 +602,7 @@ code {
     color: white;
     padding: 12px 16px;
     margin-bottom: 10px;
-    border-radius: 4px;
+    border-radius: 0;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
     transform: translateY(10px);
@@ -599,9 +620,15 @@ code {
 
 /* Animation for loading */
 @keyframes typing-animation {
-    0% { opacity: 0.3; }
-    50% { opacity: 1; }
-    100% { opacity: 0.3; }
+    0% {
+        opacity: 0.3;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.3;
+    }
 }
 
 .typing-indicator {
@@ -637,9 +664,85 @@ code {
     padding: 5px 10px;
     cursor: pointer;
     font-size: 0.8rem;
-    border-radius: 0 0 0 5px;
+    border-radius: 0;
 }
 
 .copy-button:hover {
     background-color: #2d3748;
+}
+
+/* Modellverwaltung-Styles */
+.model-item {
+    transition: all 0.3s ease;
+}
+
+.model-item:hover {
+    background-color: #f9fafb;
+}
+
+/* Fortschrittsbalken */
+progress {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 10px;
+}
+
+progress::-webkit-progress-bar {
+    background-color: #e2e8f0;
+    border-radius: 0;
+}
+
+progress::-webkit-progress-value {
+    background-color: #3b82f6;
+    border-radius: 0;
+}
+
+/* Hugging Face Modellsuche-Styling */
+.hf-model {
+    transition: all 0.2s ease;
+    background-color: #fff;
+}
+
+.hf-model:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+}
+
+.hf-model .model-name {
+    color: var(--primary-color);
+}
+
+.file-item {
+    transition: background-color 0.2s ease;
+}
+
+.file-item:hover {
+    background-color: #e9f0fd;
+}
+
+.file-name {
+    word-break: break-all;
+}
+
+#hf-search-input {
+    transition: border-color 0.2s ease;
+}
+
+#hf-search-input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+#hf-search-button {
+    transition: background-color 0.2s ease;
+}
+
+#hf-search-button:hover {
+    background-color: var(--primary-light);
+}
+
+/* Info Notification Styling */
+.notification.info {
+    background-color: #3498db;
 }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LM Studio Web-Assistent</title>
+    <title>KI-Assistant</title>
     <!-- Tailwind CSS via CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css" rel="stylesheet">
@@ -16,16 +16,22 @@
 <div class="container flex flex-col h-screen w-full max-w-full m-0 p-0">
     <header class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center shadow-md">
         <h1 class="text-xl font-semibold flex items-center gap-2">
-            <i class="fas fa-robot"></i> LM Studio Web-Assistent
+            <i class="fas fa-robot"></i> KI-Assistant
         </h1>
         <div class="flex items-center gap-3 text-sm">
+            <!-- Modellstatus-Anzeige -->
+            <div id="model-status-indicator" class="flex items-center gap-2 mr-4">
+                <div class="status-dot offline"></div>
+                <span id="model-status-text">Kein Modell geladen</span>
+            </div>
+
             <!-- Web-Suche Dropdown -->
             <div class="flex items-center gap-2">
                 <label for="webSearchMode" class="text-sm">Web-Suche:</label>
-                <select id="webSearchMode" class="bg-transparent text-white text-sm border border-blue-400 rounded px-2 py-1 focus:outline-none">
-                    <option value="auto">Auto</option>
-                    <option value="always">Immer</option>
-                    <option value="never">Nie</option>
+                <select id="webSearchMode" class="bg-transparent text-white text-sm border border-blue-400 px-2 py-1 focus:outline-none">
+                    <option value="auto" class="text-black">Auto</option>
+                    <option value="always" class="text-black">Immer</option>
+                    <option value="never" class="text-black">Nie</option>
                 </select>
             </div>
             <button id="settingsButton" class="settings-button">
@@ -38,7 +44,7 @@
         <div id="chat-messages" class="chat-messages">
             <div class="message assistant">
                 <div class="message-content">
-                    <p>Hallo! Ich bin dein lokaler KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?</p>
+                    <p>Hallo! Ich bin dein KI-Assistent mit Webzugriff. Wie kann ich dir heute helfen?</p>
                     <p class="tip">Tipp: Im "Auto"-Modus entscheide ich selbst, wann eine Web-Suche sinnvoll ist. Du kannst auch "lokal:" voranstellen, um sicherzustellen, dass keine Suche erfolgt.</p>
                 </div>
             </div>
@@ -59,7 +65,7 @@
 
     <div id="status-indicator" class="status">
         <div class="status-dot offline"></div>
-        <span>Verbindung zu LM Studio wird geprüft...</span>
+        <span>Verbindung wird aufgebaut...</span>
     </div>
 </div>
 
@@ -76,6 +82,7 @@
                     <button class="tab-button active" data-tab="general">Allgemein</button>
                     <button class="tab-button" data-tab="connection">Verbindung</button>
                     <button class="tab-button" data-tab="search">Websuche</button>
+                    <button class="tab-button" data-tab="models">Modelle</button>
                     <button class="tab-button" data-tab="advanced">Erweitert</button>
                 </div>
 
@@ -162,6 +169,100 @@
                         </div>
                     </div>
 
+                    <!-- Modell-Einstellungen -->
+                    <div class="tab-pane" id="models-tab">
+                        <div class="form-group">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-lg font-medium">LLM-Modus</h3>
+                                <label class="switch">
+                                    <input type="checkbox" id="useLocalLlm">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div class="flex mt-2">
+                                <span id="llm-mode-text" class="text-sm text-gray-600">Lokales LLM verwenden</span>
+                            </div>
+                        </div>
+
+                        <div id="local-llm-settings" class="mt-4">
+                            <div class="form-group">
+                                <h3 class="text-lg font-medium">Verfügbare Modelle</h3>
+                                <div id="models-list" class="mt-4">
+                                    <p>Lade Modelle...</p>
+                                </div>
+                            </div>
+
+                            <div class="form-group mt-4">
+                                <h3 class="text-lg font-medium">Hugging Face Modelle suchen</h3>
+                                <div class="flex mt-2">
+                                    <input type="text" id="hf-search-input" placeholder="GGUF-Modell suchen (z.B. 'mistral 7b')" class="w-full p-2 border border-gray-300 rounded-l">
+                                    <button id="hf-search-button" class="primary-button rounded-l-none">Suchen</button>
+                                </div>
+                                <div id="hf-search-results" class="mt-4 max-h-96 overflow-y-auto">
+                                    <p class="text-gray-500">Suche nach Modellen auf Hugging Face...</p>
+                                </div>
+                                <div id="hf-loading" class="mt-2 hidden">
+                                    <div class="flex items-center">
+                                        <div class="loading">
+                                            <div class="loading-dot"></div>
+                                            <div class="loading-dot"></div>
+                                            <div class="loading-dot"></div>
+                                        </div>
+                                        <span class="ml-2 text-gray-600">Suche läuft...</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group mt-4">
+                                <h3 class="text-lg font-medium">Modell herunterladen</h3>
+                                <div class="grid grid-cols-2 gap-4 mt-2">
+                                    <div>
+                                        <label for="model-download-url">Download URL:</label>
+                                        <input type="text" id="model-download-url" class="w-full p-2 border border-gray-300 rounded" placeholder="URL zur Modelldatei">
+                                    </div>
+                                    <div>
+                                        <label for="model-download-name">Name:</label>
+                                        <input type="text" id="model-download-name" class="w-full p-2 border border-gray-300 rounded" placeholder="Name des Modells">
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button id="download-model-button" class="primary-button">Modell herunterladen</button>
+                                </div>
+                                <div id="model-download-progress" class="mt-2 hidden">
+                                    <progress id="model-progress-bar" max="100" value="0" class="w-full"></progress>
+                                    <p id="model-progress-text" class="text-sm text-gray-600">Initialisiere...</p>
+                                </div>
+                            </div>
+
+                            <div class="form-group mt-4">
+                                <h3 class="text-lg font-medium">Modelleinstellungen</h3>
+                                <div class="grid grid-cols-2 gap-4 mt-2">
+                                    <div>
+                                        <label for="context-size">Kontextgröße:</label>
+                                        <input type="number" id="context-size" class="w-full p-2 border border-gray-300 rounded" min="512" max="32768" step="512" value="2048">
+                                        <small class="form-hint">Anzahl der Token im Kontext (größer = mehr Speicher)</small>
+                                    </div>
+                                    <div>
+                                        <label for="cpu-threads">CPU-Threads:</label>
+                                        <input type="number" id="cpu-threads" class="w-full p-2 border border-gray-300 rounded" min="1" max="32" value="4">
+                                        <small class="form-hint">Anzahl der CPU-Threads für Inferenz</small>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <label for="gpu-layers">GPU-Layer:</label>
+                                    <input type="number" id="gpu-layers" class="w-full p-2 border border-gray-300 rounded" min="0" max="128" value="0">
+                                    <small class="form-hint">Anzahl der GPU-beschleunigten Layer (0 = nur CPU)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="lm-studio-settings" class="mt-4 hidden">
+                            <div class="form-group">
+                                <p class="text-gray-600">Um LM Studio zu verwenden, gehe zum "Verbindung"-Tab und konfiguriere die LM Studio-Einstellungen.</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Erweiterte Einstellungen -->
                     <div class="tab-pane" id="advanced-tab">
                         <div class="form-group">
@@ -197,6 +298,52 @@
         </div>
     </div>
 </div>
+
+<!-- Template für Modell-Elemente -->
+<template id="model-item-template">
+    <div class="model-item border rounded p-3 mb-2 flex justify-between items-center">
+        <div>
+            <div class="model-name font-medium"></div>
+            <div class="model-info text-sm text-gray-600"></div>
+        </div>
+        <div class="flex gap-2">
+            <button class="load-model-button primary-button">Laden</button>
+            <button class="delete-model-button danger-button">Löschen</button>
+        </div>
+    </div>
+</template>
+
+<!-- Template für Hugging Face Suchergebnisse -->
+<template id="hf-model-template">
+    <div class="hf-model border rounded p-4 mb-3">
+        <div class="flex justify-between items-start">
+            <div>
+                <h4 class="font-bold text-lg model-name"></h4>
+                <p class="text-sm text-gray-600 model-author"></p>
+            </div>
+            <div class="text-sm text-gray-500">
+                <span class="model-downloads"></span> Downloads
+            </div>
+        </div>
+        <p class="my-2 model-description text-sm"></p>
+        <div class="model-files mt-3">
+            <h5 class="font-medium mb-1">Verfügbare GGUF-Dateien:</h5>
+            <div class="file-list space-y-1"></div>
+        </div>
+    </div>
+</template>
+
+<template id="hf-file-template">
+    <div class="file-item flex justify-between items-center bg-gray-50 p-2 rounded">
+        <div>
+            <span class="file-name font-mono text-sm"></span>
+            <span class="text-gray-500 text-xs ml-2 file-size"></span>
+        </div>
+        <button class="secondary-button download-file-button text-sm py-1 px-2">
+            <i class="fas fa-download mr-1"></i> Herunterladen
+        </button>
+    </div>
+</template>
 
 <!-- Notification Template -->
 <div id="notification-container" class="fixed bottom-4 right-4 z-50"></div>
