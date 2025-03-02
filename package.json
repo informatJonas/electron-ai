@@ -7,9 +7,12 @@
   "scripts"        : {
     "start"      : "electron .",
     "dev"        : "electron . --debug",
-    "build"      : "electron-builder",
-    "build:win"  : "electron-builder --win",
-    "postinstall": "electron-builder install-app-deps"
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps",
+    "release": "electron-builder --publish always"
   },
   "keywords"       : [
     "lm-studio",
