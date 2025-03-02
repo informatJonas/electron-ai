@@ -63,6 +63,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -115,7 +117,7 @@ jobs:
   # Final job to mark release as ready
   finalize:
     name: Finalize Release
-    needs: [release, build-windows]
+    needs: [ release, build-windows ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
