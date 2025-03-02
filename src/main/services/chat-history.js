@@ -70,8 +70,13 @@ export default class ChatHistoryManager {
      * @returns {Object} - Added message
      */
     addMessage(role, content) {
+        // Filtere Chat-Format-Tags aus dem Inhalt
+        const cleanContent = content
+            .replace(/<\|im_start\|>.*?\n/g, '')
+            .replace(/<\|im_end\|>/g, '');
+
         // Add message to current history
-        const message = {role, content, timestamp: Date.now()};
+        const message = {role, content: cleanContent, timestamp: Date.now()};
         this.currentHistory.push(message);
 
         // Limit number of messages

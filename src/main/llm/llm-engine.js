@@ -165,7 +165,7 @@ export default class LLMEngine {
             try {
                 // Versuche, eine neue Sequenz zu bekommen
                 const sequence = this.context.getSequence() ?? await this.model.createContext();
-                session = new this.llama.LlamaChatSession({
+                session        = new this.llama.LlamaChatSession({
                     contextSequence: sequence,
                     systemPrompt   : this.config.systemPrompt
                 });
@@ -184,7 +184,7 @@ export default class LLMEngine {
 
                     // Neue Sequenz und Session erstellen
                     const newSequence = this.context.getSequence();
-                    session = new this.llama.LlamaChatSession({
+                    session           = new this.llama.LlamaChatSession({
                         contextSequence: newSequence,
                         systemPrompt   : this.config.systemPrompt
                     });
@@ -211,10 +211,13 @@ export default class LLMEngine {
                 ...inferenceOptions,
                 onToken: (token) => {
                     const tokenText = model.detokenize(token);
-                    fullResponse += tokenText;
+
+                    // Filtere Tags
+                    const filteredText = tokenText.replace(/<\|im_end\|>/g, '');
+                    fullResponse += filteredText;
 
                     if (options.onToken) {
-                        options.onToken(tokenText);
+                        options.onToken(filteredText);
                     }
                 }
             });

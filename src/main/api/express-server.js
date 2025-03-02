@@ -124,7 +124,8 @@ export function createExpressServer(dependencies) {
         const needsTechnicalInfo = [
             'fehler', 'problem', 'installation', 'anleitung', 'tutorial',
             'dokumentation', 'api', 'funktion', 'methode', 'beispiel',
-            'code für', 'programmierung', 'library', 'bibliothek', 'framework'
+            'code für', 'programmierung', 'library', 'bibliothek', 'framework',
+            'internet', 'llm', 'model', 'modell', 'ki', 'ai'
         ].some(term => lowerMessage.includes(term));
 
         const containsSpecificEntity = /\d{4}|version \d+|\b[A-Z][a-z]+ [A-Z][a-z]+\b/.test(message);
@@ -315,6 +316,7 @@ export function createExpressServer(dependencies) {
                         signal
                     });
 
+                    streamContent = streamContent.replace(/<\|im_start\|>.*?\n/g, '').replace(/<\|im_end\|>/g, '');
                     chatHistoryManager.addMessage('assistant', streamContent);
                     res.write('event: done\ndata: END\n\n');
                     res.end();

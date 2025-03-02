@@ -128,7 +128,7 @@ async function sendMessage(startNewConversation = false) {
                             isStreamComplete = true;
 
                             // Final formatting
-                            contentElement.innerHTML = await window.markdownAPI.render(fullResponse);
+                            contentElement.innerHTML = await window.markdownAPI.render(fullResponse.replace(/<\|im_start\|>.*?\n/g, '').replace(/<\|im_end\|>/g, ''));
 
                             // Make links clickable
                             const links = contentElement.querySelectorAll('a');
