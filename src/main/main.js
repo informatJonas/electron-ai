@@ -7,6 +7,7 @@ import {fileURLToPath} from 'url';
 import createExpressServer from './api/express-server.js';
 // Dynamically import modules
 import configManager from './config/config-manager.js';
+import {searchModels} from "./llm/huggingface.js";
 import LLMEngine from './llm/llm-engine.js';
 import * as lmStudioConnector from './llm/lm-studio-connector.js'
 import ChatHistoryManager from './services/chat-history.js';
@@ -923,8 +924,7 @@ async function searchHuggingFaceModelsHandler(event, query) {
         console.log(`Searching for Hugging Face models: "${query}"`);
 
         // Dynamically import huggingface module
-        const huggingFace = await import('./llm/huggingface.js');
-        const models      = await huggingFace.searchModels(query);
+        const models = await searchModels(query);
 
         return {success: true, models};
     } catch (error) {

@@ -48,11 +48,7 @@ jobs:
           gh release create v$VERSION \
             --draft \
             --title "KI-Assistant v$VERSION" \
-            --notes "KI-Assistant Version $VERSION
-          
-            ## Download
-          
-            - Windows: KI-Assistant-Setup-$VERSION.exe"
+            --generate-notes
 
   build-windows:
     name: Build Windows
