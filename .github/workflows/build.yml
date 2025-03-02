@@ -97,28 +97,6 @@ jobs:
           name: KI-Assistant-Setup-${{ needs.release.outputs.version }}
           path: output
 
-      - name: Delete existing asset
-        run: |
-          gh release delete "v$VERSION" --yes --asset "KI-Assistant-Setup-${{ needs.release.outputs.version }}.exe" || echo "No existing asset to delete"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          VERSION: ${{ needs.release.outputs.version }}
-
-      - name: Upload release asset
-        if: success()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          VERSION: ${{ needs.release.outputs.version }}
-        run: |
-          $assetPath = "output/KI-Assistant-Setup-$env:VERSION.exe"
-          if (Test-Path $assetPath) {
-            echo "Uploading $assetPath to release..."
-            gh release upload "v$env:VERSION" "$assetPath"
-          } else {
-            echo "Error: Asset not found at $assetPath"
-            exit 1
-          }
-
   build-linux:
     name: Build Linux
     needs: release
@@ -155,12 +133,6 @@ jobs:
           mkdir -p output
           cp dist/*.AppImage output/KI-Assistant-${{ needs.release.outputs.version }}.AppImage
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: KI-Assistant-${{ needs.release.outputs.version }}.AppImage
-          path: output
-
   build-macos:
     name: Build macOS
     needs: release
@@ -196,12 +168,6 @@ jobs:
         run: |
           mkdir -p output
           cp dist/*.dmg output/KI-Assistant-${{ needs.release.outputs.version }}.dmg
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: KI-Assistant-${{ needs.release.outputs.version }}.dmg
-          path: output
 
   finalize:
     name: Finalize Release
