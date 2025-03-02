@@ -47,6 +47,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const cpuThreadsInput  = document.getElementById('cpu-threads');
     const gpuLayersInput   = document.getElementById('gpu-layers');
 
+    // Element-Referenzen
+    const selectFolderButton    = document.getElementById('select-folder-button');
+    const foldersList           = document.getElementById('folders-list');
+    const addRepositoryButton   = document.getElementById('add-repository-button');
+    const repoUrlInput          = document.getElementById('repo-url');
+    const repoBranchInput       = document.getElementById('repo-branch');
+    const repositoriesList      = document.getElementById('repositories-list');
+    const tokenServiceSelect    = document.getElementById('token-service');
+    const tokenDomainInput      = document.getElementById('token-domain');
+    const tokenValueInput       = document.getElementById('token-value');
+    const saveTokenButton       = document.getElementById('save-token-button');
+    const customDomainContainer = document.getElementById('custom-domain-container');
+    const githubTokenHelp       = document.getElementById('github-token-help');
+    const gitlabTokenHelp       = document.getElementById('gitlab-token-help');
+
+    // File Browser Modal Elemente
+    const fileBrowserModal      = document.getElementById('file-browser-modal');
+    const fileBrowserTitle      = document.getElementById('file-browser-title');
+    const fileBrowserBack       = document.getElementById('file-browser-back');
+    const fileBrowserPath       = document.getElementById('file-browser-path');
+    const fileSearchInput       = document.getElementById('file-search-input');
+    const fileSearchButton      = document.getElementById('file-search-button');
+    const fileBrowserContent    = document.getElementById('file-browser-content');
+    const fileContentViewer     = document.getElementById('file-content-viewer');
+    const fileContentName       = document.getElementById('file-content-name');
+    const fileContentPre        = document.getElementById('file-content-pre');
+    const fileContentClose      = document.getElementById('file-content-close');
+    const fileBrowserClose      = document.getElementById('file-browser-close');
+    const fileBrowserSendToChat = document.getElementById('file-browser-send-to-chat');
+
+    // UI-Zustände
+    let currentBrowsingSource = null;
+    let currentBrowsingPath   = '';
+    let selectedFiles         = [];
+    let browseHistory         = [];
+
     // Status-Tracking
     let isProcessing = false;
 
@@ -960,4 +996,819 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // Repositories und Ordner laden
+    async function loadSources() {
+        try {
+            const result = await window.electronAPI.getAllSources();
+
+            if (result.success) {
+                renderFolders(result.folders);
+                renderRepositories(result.repositories);
+            } else {
+                console.error('Fehler beim Laden der Quellen:', result.error);
+            }
+        } catch (error) {
+            console.error('Fehler beim Laden der Quellen:', error);
+        }
+    }
+
+// Ordner auswählen
+    if (selectFolderButton) {
+        selectFolderButton.addEventListener('click', async () => {
+            try {
+                const result = await window.electronAPI.selectFolder();
+
+                if (result.success) {
+                    showNotification(`Ordner "${result.folderName}" hinzugefügt`);
+                    loadSources(); // Liste aktualisieren
+                } else if (!result.canceled) {
+                    showNotification(`Fehler: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showNotification(`Fehler: ${error.message}`, 'error');
+            }
+        });
+    }
+
+// Repository hinzufügen
+    if (addRepositoryButton) {
+        addRepositoryButton.addEventListener('click', async () => {
+            const url    = repoUrlInput.value.trim();
+            const branch = repoBranchInput.value.trim() || 'main';
+
+            if (!url) {
+                showNotification('Bitte gib eine Repository-URL ein', 'error');
+                return;
+            }
+
+            try {
+                addRepositoryButton.disabled  = true;
+                addRepositoryButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Wird hinzugefügt...';
+
+                const result = await window.electronAPI.addRepository({
+                    url,
+                    branch
+                });
+
+                if (result.success) {
+                    showNotification(`Repository "${result.name || url}" hinzugefügt`);
+                    repoUrlInput.value    = '';
+                    repoBranchInput.value = '';
+                    loadSources(); // Liste aktualisieren
+                } else {
+                    showNotification(`Fehler: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showNotification(`Fehler: ${error.message}`, 'error');
+            } finally {
+                addRepositoryButton.disabled  = false;
+                addRepositoryButton.innerHTML = '<i class="fas fa-code-branch mr-2"></i> Repository hinzufügen';
+            }
+        });
+    }
+
+// Token-Service ändern
+    if (tokenServiceSelect) {
+        tokenServiceSelect.addEventListener('change', () => {
+            const isCustom = tokenServiceSelect.value === 'custom';
+            customDomainContainer.classList.toggle('hidden', !isCustom);
+        });
+    }
+
+// Token speichern
+    if (saveTokenButton) {
+        saveTokenButton.addEventListener('click', async () => {
+            const service = tokenServiceSelect.value;
+            const token   = tokenValueInput.value.trim();
+            const domain  = tokenDomainInput.value.trim();
+
+            if (!token) {
+                showNotification('Bitte gib ein Token ein', 'error');
+                return;
+            }
+
+            if (service === 'custom' && !domain) {
+                showNotification('Bitte gib eine Domain für den benutzerdefinierten Service ein', 'error');
+                return;
+            }
+
+            try {
+                saveTokenButton.disabled = true;
+
+                const result = await window.electronAPI.saveGitToken({
+                    service,
+                    token,
+                    domain: service === 'custom' ? domain : null
+                });
+
+                if (result.success) {
+                    showNotification('Token erfolgreich gespeichert');
+                    tokenValueInput.value    = '';
+                    tokenDomainInput.value   = '';
+                    tokenServiceSelect.value = 'github';
+                    customDomainContainer.classList.add('hidden');
+                } else {
+                    showNotification(`Fehler: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showNotification(`Fehler: ${error.message}`, 'error');
+            } finally {
+                saveTokenButton.disabled = false;
+            }
+        });
+    }
+
+// Token-Hilfe-Links
+    if (githubTokenHelp) {
+        githubTokenHelp.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.electronAPI.openExternalLink('https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token');
+        });
+    }
+
+    if (gitlabTokenHelp) {
+        gitlabTokenHelp.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.electronAPI.openExternalLink('https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html');
+        });
+    }
+
+// Ordner rendern
+    function renderFolders(folders) {
+        if (!foldersList) return;
+
+        if (!folders || Object.keys(folders).length === 0) {
+            foldersList.innerHTML = '<p class="text-gray-500">Keine Ordner freigegeben</p>';
+            return;
+        }
+
+        foldersList.innerHTML = '';
+
+        for (const [folderId, folder] of Object.entries(folders)) {
+            const template = document.getElementById('folder-item-template');
+            if (!template) continue;
+
+            const clone = document.importNode(template.content, true);
+
+            // Ordnername und Pfad setzen
+            clone.querySelector('.folder-name-text').textContent = folder.name;
+            clone.querySelector('.folder-path').textContent      = folder.path;
+
+            // Durchsuchen-Button
+            clone.querySelector('.browse-folder-button').addEventListener('click', () => {
+                openFileBrowser(folderId, 'folder', folder.name);
+            });
+
+            // Entfernen-Button
+            clone.querySelector('.remove-folder-button').addEventListener('click', async () => {
+                if (confirm(`Möchtest du den Ordner "${folder.name}" wirklich entfernen?`)) {
+                    try {
+                        const result = await window.electronAPI.removeSource({sourceId: folderId});
+
+                        if (result.success) {
+                            showNotification(`Ordner "${folder.name}" entfernt`);
+                            loadSources(); // Liste aktualisieren
+                        } else {
+                            showNotification(`Fehler: ${result.error}`, 'error');
+                        }
+                    } catch (error) {
+                        showNotification(`Fehler: ${error.message}`, 'error');
+                    }
+                }
+            });
+
+            foldersList.appendChild(clone);
+        }
+    }
+
+// Repositories rendern
+    function renderRepositories(repositories) {
+        if (!repositoriesList) return;
+
+        if (!repositories || Object.keys(repositories).length === 0) {
+            repositoriesList.innerHTML = '<p class="text-gray-500">Keine Repositories freigegeben</p>';
+            return;
+        }
+
+        repositoriesList.innerHTML = '';
+
+        for (const [repoId, repo] of Object.entries(repositories)) {
+            const template = document.getElementById('repository-item-template');
+            if (!template) continue;
+
+            const clone = document.importNode(template.content, true);
+
+            // Repository-Name und URL setzen
+            clone.querySelector('.repo-name-text').textContent = repo.name;
+            clone.querySelector('.repo-url').textContent       = repo.url;
+
+            // Status-Text setzen
+            const statusText = clone.querySelector('.repo-status-text');
+            if (repo.lastSynced) {
+                const lastSyncDate     = new Date(repo.lastSynced);
+                statusText.textContent = `Zuletzt synchronisiert: ${lastSyncDate.toLocaleString('de-de', {
+                    year  : '2-digit',
+                    month : '2-digit',
+                    day   : '2-digit',
+                    hour  : '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                })}`;
+                statusText.classList.add('text-green-600');
+            } else {
+                statusText.textContent = 'Noch nicht synchronisiert';
+                statusText.classList.add('text-yellow-600');
+            }
+
+            // Private Repositories markieren
+            if (repo.isPrivate) {
+                const repoNameText = clone.querySelector('.repo-name-text');
+                repoNameText.innerHTML += ' <span class="text-xs bg-gray-200 text-gray-700 py-0.5 px-1">privat</span>';
+            }
+
+            // Durchsuchen-Button
+            clone.querySelector('.browse-repo-button').addEventListener('click', () => {
+                openFileBrowser(repoId, 'repository', repo.name);
+            });
+
+            // Sync-Button
+            clone.querySelector('.sync-repo-button').addEventListener('click', async () => {
+                try {
+                    const syncButton     = clone.querySelector('.sync-repo-button');
+                    syncButton.disabled  = true;
+                    syncButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Sync';
+
+                    const result = await window.electronAPI.syncRepository({repoId});
+
+                    if (result.success) {
+                        showNotification(`Repository "${repo.name}" synchronisiert`);
+                        loadSources(); // Liste aktualisieren
+                    } else {
+                        showNotification(`Fehler: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    showNotification(`Fehler: ${error.message}`, 'error');
+                } finally {
+                    const syncButton     = clone.querySelector('.sync-repo-button');
+                    syncButton.disabled  = false;
+                    syncButton.innerHTML = '<i class="fas fa-sync mr-1"></i> Sync';
+                }
+            });
+
+            // Entfernen-Button
+            clone.querySelector('.remove-repo-button').addEventListener('click', async () => {
+                if (confirm(`Möchtest du das Repository "${repo.name}" wirklich entfernen?`)) {
+                    try {
+                        const result = await window.electronAPI.removeSource({sourceId: repoId});
+
+                        if (result.success) {
+                            showNotification(`Repository "${repo.name}" entfernt`);
+                            loadSources(); // Liste aktualisieren
+                        } else {
+                            showNotification(`Fehler: ${result.error}`, 'error');
+                        }
+                    } catch (error) {
+                        showNotification(`Fehler: ${error.message}`, 'error');
+                    }
+                }
+            });
+
+            repositoriesList.appendChild(clone);
+        }
+    }
+
+// Datei-Browser öffnen
+    async function openFileBrowser(sourceId, sourceType, sourceName) {
+        currentBrowsingSource = sourceId;
+        currentBrowsingPath   = '';
+        browseHistory         = [];
+        selectedFiles         = [];
+
+        // Modal-Titel setzen
+        const icon                 = sourceType === 'folder' ? 'fa-folder-open' : 'fa-code-branch';
+        fileBrowserTitle.innerHTML = `<i class="fas ${icon} mr-2"></i> ${sourceName}`;
+
+        // Modal öffnen
+        fileBrowserModal.style.display = 'block';
+
+        // Dateien anzeigen
+        await listFiles(sourceId, '');
+    }
+
+// Dateien auflisten
+    async function listFiles(sourceId, subPath) {
+        try {
+            // Lade-Animation anzeigen
+            fileBrowserContent.innerHTML = `
+            <div class="loading">
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+            </div>
+        `;
+
+            // Dateien abrufen
+            const result = await window.electronAPI.listFiles({
+                sourceId,
+                subPath
+            });
+
+            if (result.success) {
+                // Aktuellen Pfad aktualisieren
+                currentBrowsingPath         = subPath;
+                fileBrowserPath.textContent = subPath || '/';
+
+                // Inhalte anzeigen
+                renderFileBrowserContent(result);
+            } else {
+                fileBrowserContent.innerHTML = `<p class="text-red-500">Fehler: ${result.error}</p>`;
+            }
+        } catch (error) {
+            fileBrowserContent.innerHTML = `<p class="text-red-500">Fehler: ${error.message}</p>`;
+        }
+    }
+
+// Datei-Browser-Inhalte rendern
+    function renderFileBrowserContent(data) {
+        fileBrowserContent.innerHTML = '';
+
+        if (data.directories.length === 0 && data.files.length === 0) {
+            fileBrowserContent.innerHTML = '<p class="text-gray-500">Dieser Ordner ist leer</p>';
+            return;
+        }
+
+        // Ordner zuerst anzeigen
+        if (data.directories.length > 0) {
+            const dirContainer     = document.createElement('div');
+            dirContainer.className = 'mb-2';
+
+            data.directories.forEach(dir => {
+                const dirItem     = document.createElement('div');
+                dirItem.className = 'flex items-center p-2 hover:bg-gray-100 cursor-pointer';
+                dirItem.innerHTML = `
+                <i class="fas fa-folder text-yellow-500 mr-2"></i>
+                <span>${dir.name}</span>
+            `;
+
+                dirItem.addEventListener('click', () => {
+                    // Verzeichniswechsel mit Verlauf
+                    browseHistory.push(currentBrowsingPath);
+                    listFiles(currentBrowsingSource, dir.path);
+                });
+
+                dirContainer.appendChild(dirItem);
+            });
+
+            fileBrowserContent.appendChild(dirContainer);
+        }
+
+        // Dateien anzeigen
+        if (data.files.length > 0) {
+            const fileContainer = document.createElement('div');
+
+            // Trennlinie, wenn Verzeichnisse vorhanden sind
+            if (data.directories.length > 0) {
+                const separator     = document.createElement('div');
+                separator.className = 'border-t border-gray-200 my-2';
+                fileContainer.appendChild(separator);
+            }
+
+            data.files.forEach(file => {
+                const fileItem     = document.createElement('div');
+                fileItem.className = 'flex items-center justify-between p-2 hover:bg-gray-100';
+
+                // Icon nach Dateityp auswählen
+                let icon      = 'fa-file';
+                let iconClass = 'text-gray-500';
+
+                if (file.extension === '.js' || file.extension === '.jsx' || file.extension === '.ts') {
+                    icon      = 'fa-file-code';
+                    iconClass = 'text-yellow-600';
+                } else if (file.extension === '.html' || file.extension === '.htm' || file.extension === '.xml') {
+                    icon      = 'fa-file-code';
+                    iconClass = 'text-orange-500';
+                } else if (file.extension === '.css' || file.extension === '.scss' || file.extension === '.sass') {
+                    icon      = 'fa-file-code';
+                    iconClass = 'text-blue-500';
+                } else if (file.extension === '.json') {
+                    icon      = 'fa-file-code';
+                    iconClass = 'text-green-600';
+                } else if (file.extension === '.md') {
+                    icon      = 'fa-file-alt';
+                    iconClass = 'text-blue-600';
+                } else if (['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp'].includes(file.extension)) {
+                    icon      = 'fa-file-image';
+                    iconClass = 'text-purple-500';
+                } else if (['.mp4', '.webm', '.avi', '.mov'].includes(file.extension)) {
+                    icon      = 'fa-file-video';
+                    iconClass = 'text-red-500';
+                } else if (['.mp3', '.wav', '.ogg'].includes(file.extension)) {
+                    icon      = 'fa-file-audio';
+                    iconClass = 'text-green-500';
+                } else if (['.pdf'].includes(file.extension)) {
+                    icon      = 'fa-file-pdf';
+                    iconClass = 'text-red-600';
+                } else if (['.doc', '.docx'].includes(file.extension)) {
+                    icon      = 'fa-file-word';
+                    iconClass = 'text-blue-600';
+                } else if (['.xls', '.xlsx'].includes(file.extension)) {
+                    icon      = 'fa-file-excel';
+                    iconClass = 'text-green-600';
+                } else if (['.ppt', '.pptx'].includes(file.extension)) {
+                    icon      = 'fa-file-powerpoint';
+                    iconClass = 'text-orange-600';
+                } else if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(file.extension)) {
+                    icon      = 'fa-file-archive';
+                    iconClass = 'text-amber-700';
+                }
+
+                const nameElement     = document.createElement('div');
+                nameElement.className = 'flex items-center flex-1';
+                nameElement.innerHTML = `
+                <i class="fas ${icon} ${iconClass} mr-2"></i>
+                <span class="truncate">${file.name}</span>
+                <span class="text-xs text-gray-500 ml-2">${formatFileSize(file.size)}</span>
+            `;
+
+                fileItem.appendChild(nameElement);
+
+                const actionDiv = document.createElement('div');
+
+                // Nur für Textdateien: Anzeigen-Button
+                if (isTextFile(file.extension)) {
+                    const viewButton     = document.createElement('button');
+                    viewButton.className = 'text-blue-600 hover:text-blue-700 px-2';
+                    viewButton.innerHTML = '<i class="fas fa-eye"></i>';
+                    viewButton.title     = 'Datei anzeigen';
+
+                    viewButton.addEventListener('click', async () => {
+                        await showFileContent(currentBrowsingSource, file.path);
+                    });
+
+                    actionDiv.appendChild(viewButton);
+                }
+
+                // Button zum Einbinden in den Chat
+                const addButton     = document.createElement('button');
+                addButton.className = 'text-green-600 hover:text-green-700 px-2';
+                addButton.innerHTML = '<i class="fas fa-plus"></i>';
+                addButton.title     = 'In Auswahl aufnehmen';
+
+                let isSelected = false;
+
+                addButton.addEventListener('click', () => {
+                    isSelected = !isSelected;
+
+                    if (isSelected) {
+                        selectedFiles.push({
+                            sourceId: currentBrowsingSource,
+                            path    : file.path,
+                            name    : file.name
+                        });
+                        fileItem.classList.add('bg-blue-50');
+                        addButton.innerHTML = '<i class="fas fa-check text-green-600"></i>';
+                    } else {
+                        selectedFiles = selectedFiles.filter(f => !(f.sourceId === currentBrowsingSource && f.path === file.path));
+                        fileItem.classList.remove('bg-blue-50');
+                        addButton.innerHTML = '<i class="fas fa-plus"></i>';
+                    }
+
+                    // "In Chat einfügen" Button aktualisieren
+                    updateSendToChatButton();
+                });
+
+                actionDiv.appendChild(addButton);
+                fileItem.appendChild(actionDiv);
+
+                fileContainer.appendChild(fileItem);
+            });
+
+            fileBrowserContent.appendChild(fileContainer);
+        }
+    }
+
+// "In Chat einfügen" Button aktualisieren
+    function updateSendToChatButton() {
+        if (fileBrowserSendToChat) {
+            if (selectedFiles.length > 0) {
+                fileBrowserSendToChat.disabled  = false;
+                fileBrowserSendToChat.innerHTML = `
+                <i class="fas fa-paper-plane mr-2"></i> ${selectedFiles.length} Datei(en) in Chat einfügen
+            `;
+            } else {
+                fileBrowserSendToChat.disabled  = true;
+                fileBrowserSendToChat.innerHTML = `
+                <i class="fas fa-paper-plane mr-2"></i> In Chat einfügen
+            `;
+            }
+        }
+    }
+
+// Dateiinhalt anzeigen
+    async function showFileContent(sourceId, filePath) {
+        try {
+            fileContentViewer.classList.remove('hidden');
+            fileContentPre.innerHTML    = '<div class="loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div></div>';
+            fileContentName.textContent = filePath.split('/').pop();
+
+            const result = await window.electronAPI.readFile({
+                sourceId,
+                filePath
+            });
+
+            if (result.success) {
+                // Syntax-Highlighting basierend auf der Dateierweiterung
+                const extension = result.extension.replace('.', '');
+                const language  = getLanguageFromExtension(extension);
+
+                // Inhalt formatieren
+                if (language) {
+                    fileContentPre.innerHTML = `<code class="language-${language}">${escapeHtml(result.content)}</code>`;
+                    hljs.highlightElement(fileContentPre.querySelector('code'));
+                } else {
+                    fileContentPre.textContent = result.content;
+                }
+            } else {
+                fileContentPre.innerHTML = `<div class="text-red-500">Fehler: ${result.error}</div>`;
+            }
+        } catch (error) {
+            fileContentPre.innerHTML = `<div class="text-red-500">Fehler: ${error.message}</div>`;
+        }
+    }
+
+// Dateigröße formatieren
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i     = Math.floor(Math.log(bytes) / Math.log(1024));
+
+        return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`;
+    }
+
+// Prüft, ob eine Datei eine Textdatei ist
+    function isTextFile(extension) {
+        const textExtensions = [
+            '.txt', '.md', '.json', '.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.sass',
+            '.html', '.htm', '.xml', '.svg', '.c', '.cpp', '.h', '.cs', '.java', '.py',
+            '.rb', '.php', '.go', '.rs', '.swift', '.sh', '.bat', '.ps1', '.yaml', '.yml',
+            '.toml', '.ini', '.config', '.conf', '.log', '.gitignore', '.env', '.htaccess',
+            '.csv', '.tsv'
+        ];
+
+        return textExtensions.includes(extension);
+    }
+
+// Ermittelt die Sprache für Syntax-Highlighting anhand der Dateierweiterung
+    function getLanguageFromExtension(extension) {
+        const languageMap = {
+            'js'   : 'javascript',
+            'jsx'  : 'javascript',
+            'ts'   : 'typescript',
+            'tsx'  : 'typescript',
+            'html' : 'html',
+            'css'  : 'css',
+            'scss' : 'scss',
+            'sass' : 'scss',
+            'json' : 'json',
+            'md'   : 'markdown',
+            'py'   : 'python',
+            'java' : 'java',
+            'c'    : 'c',
+            'cpp'  : 'cpp',
+            'cs'   : 'csharp',
+            'rb'   : 'ruby',
+            'php'  : 'php',
+            'go'   : 'go',
+            'rs'   : 'rust',
+            'swift': 'swift',
+            'sh'   : 'bash',
+            'bat'  : 'batch',
+            'ps1'  : 'powershell',
+            'yaml' : 'yaml',
+            'yml'  : 'yaml',
+            'xml'  : 'xml',
+            'sql'  : 'sql',
+            'toml' : 'toml',
+            'ini'  : 'ini'
+        };
+
+        return languageMap[extension] || '';
+    }
+
+// HTML-Zeichen escapen
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+// Zurück-Button im Datei-Browser
+    if (fileBrowserBack) {
+        fileBrowserBack.addEventListener('click', () => {
+            if (browseHistory.length > 0) {
+                const previousPath = browseHistory.pop();
+                listFiles(currentBrowsingSource, previousPath);
+            } else if (currentBrowsingPath) {
+                // Zum übergeordneten Verzeichnis navigieren
+                const pathParts = currentBrowsingPath.split('/');
+                pathParts.pop();
+                const parentPath = pathParts.join('/');
+                listFiles(currentBrowsingSource, parentPath);
+            }
+        });
+    }
+
+// Datei-Suche
+    if (fileSearchButton) {
+        fileSearchButton.addEventListener('click', async () => {
+            const query = fileSearchInput.value.trim();
+
+            if (!query) {
+                showNotification('Bitte gib einen Suchbegriff ein', 'error');
+                return;
+            }
+
+            try {
+                fileSearchButton.disabled    = true;
+                fileBrowserContent.innerHTML = `
+                <div class="loading">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+                <p class="text-center text-gray-600 mt-2">Suche nach "${query}"...</p>
+            `;
+
+                const result = await window.electronAPI.searchFiles({
+                    sourceId: currentBrowsingSource,
+                    query,
+                    options : {
+                        maxResults   : 50,
+                        extensions   : null, // Alle Dateitypen
+                        includeBinary: false,
+                        recursive    : true
+                    }
+                });
+
+                if (result.success) {
+                    renderSearchResults(result);
+                } else {
+                    fileBrowserContent.innerHTML = `<p class="text-red-500">Fehler: ${result.error}</p>`;
+                }
+            } catch (error) {
+                fileBrowserContent.innerHTML = `<p class="text-red-500">Fehler: ${error.message}</p>`;
+            } finally {
+                fileSearchButton.disabled = false;
+            }
+        });
+
+        fileSearchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                fileSearchButton.click();
+            }
+        });
+    }
+
+// Suchergebnisse rendern
+    function renderSearchResults(data) {
+        fileBrowserContent.innerHTML = '';
+
+        if (!data.results || data.results.length === 0) {
+            fileBrowserContent.innerHTML = `<p class="text-gray-500">Keine Ergebnisse für "${data.query}" gefunden</p>`;
+            return;
+        }
+
+        // Überschrift für Suchergebnisse
+        const header     = document.createElement('div');
+        header.className = 'mb-4';
+        header.innerHTML = `
+        <h3 class="text-lg font-medium">${data.results.length} Ergebnisse für "${data.query}"</h3>
+        <p class="text-sm text-gray-600">Klicke auf ein Ergebnis, um die Datei anzuzeigen</p>
+    `;
+        fileBrowserContent.appendChild(header);
+
+        // Ergebnisliste
+        const resultsList     = document.createElement('div');
+        resultsList.className = 'space-y-2';
+
+        data.results.forEach(result => {
+            const resultItem     = document.createElement('div');
+            resultItem.className = 'border rounded p-2 hover:bg-gray-50 cursor-pointer';
+
+            // Icon nach Dateityp auswählen
+            let icon      = 'fa-file';
+            let iconClass = 'text-gray-500';
+
+            if (result.extension === '.js' || result.extension === '.jsx' || result.extension === '.ts') {
+                icon      = 'fa-file-code';
+                iconClass = 'text-yellow-600';
+            } else if (result.extension === '.html' || result.extension === '.htm') {
+                icon      = 'fa-file-code';
+                iconClass = 'text-orange-500';
+            } else if (result.extension === '.css' || result.extension === '.scss') {
+                icon      = 'fa-file-code';
+                iconClass = 'text-blue-500';
+            }
+
+            resultItem.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas ${icon} ${iconClass} mr-2"></i>
+                <div class="flex-1">
+                    <div class="font-medium">${result.path}</div>
+                    <div class="text-sm text-gray-600">Zeile ${result.lineNumber}: <span class="font-mono">${escapeHtml(result.content)}</span></div>
+                </div>
+                <button class="ml-2 text-blue-600 hover:text-blue-700" title="Datei anzeigen">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </div>
+        `;
+
+            resultItem.addEventListener('click', async () => {
+                await showFileContent(currentBrowsingSource, result.path);
+            });
+
+            resultsList.appendChild(resultItem);
+        });
+
+        fileBrowserContent.appendChild(resultsList);
+    }
+
+// Datei-Inhalt schließen
+    if (fileContentClose) {
+        fileContentClose.addEventListener('click', () => {
+            fileContentViewer.classList.add('hidden');
+        });
+    }
+
+// Datei-Browser schließen
+    if (fileBrowserClose) {
+        fileBrowserClose.addEventListener('click', () => {
+            fileBrowserModal.style.display = 'none';
+        });
+    }
+
+// Dateien an Chat senden
+    if (fileBrowserSendToChat) {
+        fileBrowserSendToChat.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+
+            const filePromises = selectedFiles.map(file =>
+                window.electronAPI.readFile({
+                    sourceId: file.sourceId,
+                    filePath: file.path
+                })
+            );
+
+            try {
+                const results    = await Promise.all(filePromises);
+                let fileContents = '';
+
+                results.forEach((result, index) => {
+                    if (result.success) {
+                        const fileName = selectedFiles[index].name;
+
+                        fileContents += `### Datei: ${fileName}\n\`\`\`${getLanguageFromExtension(result.extension.replace('.', '')) || ''}\n${result.content}\n\`\`\`\n\n`;
+                    }
+                });
+
+                if (fileContents) {
+                    // In das Chat-Eingabefeld einfügen
+                    userInput.value += (userInput.value ? '\n\n' : '') + fileContents;
+
+                    // Eingabefeld-Höhe anpassen
+                    userInput.style.height = 'auto';
+                    userInput.style.height = (userInput.scrollHeight) + 'px';
+
+                    // Modal schließen
+                    fileBrowserModal.style.display = 'none';
+
+                    // Ausgewählte Dateien zurücksetzen
+                    selectedFiles = [];
+
+                    // Fokus auf Eingabefeld setzen
+                    userInput.focus();
+                }
+            } catch (error) {
+                showNotification(`Fehler: ${error.message}`, 'error');
+            }
+        });
+    }
+
+// Modal schließen, wenn außerhalb geklickt wird
+    window.addEventListener('click', (event) => {
+        if (event.target === fileBrowserModal) {
+            fileBrowserModal.style.display = 'none';
+        }
+    });
+
+// Repositories und Ordner beim Laden des Tabs anzeigen
+    document.querySelector('[data-tab="repositories"]')?.addEventListener('click', () => {
+        loadSources();
+    });
 });

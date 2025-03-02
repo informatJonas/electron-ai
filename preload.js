@@ -81,4 +81,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     searchHuggingFaceModels: (query) => ipcRenderer.invoke('search-huggingface-models', query),
+
+    // Git und Ordner-Verwaltung
+    selectFolder: () => ipcRenderer.invoke('select-folder'),
+    addRepository: (options) => ipcRenderer.invoke('add-repository', options),
+    saveGitToken: (options) => ipcRenderer.invoke('save-git-token', options),
+    listFiles: (options) => ipcRenderer.invoke('list-files', options),
+    readFile: (options) => ipcRenderer.invoke('read-file', options),
+    searchFiles: (options) => ipcRenderer.invoke('search-files', options),
+    syncRepository: (options) => ipcRenderer.invoke('sync-repository', options),
+    removeSource: (options) => ipcRenderer.invoke('remove-source', options),
+    getAllSources: () => ipcRenderer.invoke('get-all-sources'),
 });

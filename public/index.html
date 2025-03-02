@@ -83,6 +83,7 @@
                     <button class="tab-button" data-tab="connection">Verbindung</button>
                     <button class="tab-button" data-tab="search">Websuche</button>
                     <button class="tab-button" data-tab="models">Modelle</button>
+                    <button class="tab-button" data-tab="repositories">Quellcode</button>
                     <button class="tab-button" data-tab="advanced">Erweitert</button>
                 </div>
 
@@ -263,6 +264,101 @@
                         </div>
                     </div>
 
+                    <!-- Ordner/Git-Einstellungen -->
+                    <div class="tab-pane" id="repositories-tab">
+                        <div class="grid grid-cols-1 gap-4">
+                            <!-- Lokale Ordner-Sektion -->
+                            <div class="border rounded p-4">
+                                <h3 class="text-lg font-medium mb-4">Lokale Ordner</h3>
+
+                                <div class="mb-4">
+                                    <button id="select-folder-button" class="primary-button">
+                                        <i class="fas fa-folder-open mr-2"></i> Ordner auswählen
+                                    </button>
+                                    <small class="form-hint">Wähle einen lokalen Ordner aus, um dessen Inhalt mit dem Assistant zu teilen.</small>
+                                </div>
+
+                                <div id="folders-list" class="mt-4 max-h-48 overflow-y-auto">
+                                    <p class="text-gray-500">Keine Ordner freigegeben</p>
+                                </div>
+                            </div>
+
+                            <!-- Git-Repositories Sektion -->
+                            <div class="border rounded p-4">
+                                <h3 class="text-lg font-medium mb-4">Git-Repositories</h3>
+
+                                <div class="mb-4">
+                                    <div class="grid grid-cols-1 gap-2">
+                                        <div class="form-group">
+                                            <label for="repo-url">Repository URL:</label>
+                                            <input type="text" id="repo-url" class="w-full p-2 border border-gray-300 rounded"
+                                                   placeholder="https://github.com/username/repo.git">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="repo-branch">Branch (optional):</label>
+                                            <input type="text" id="repo-branch" class="w-full p-2 border border-gray-300 rounded"
+                                                   placeholder="main">
+                                        </div>
+                                        <div class="form-group">
+                                            <button id="add-repository-button" class="primary-button">
+                                                <i class="fas fa-code-branch mr-2"></i> Repository hinzufügen
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="form-hint">Unterstützt GitHub, GitLab und andere Git-Repositories (inkl. selbst-gehostete Instanzen).</small>
+                                </div>
+
+                                <div id="repositories-list" class="mt-4 max-h-64 overflow-y-auto">
+                                    <p class="text-gray-500">Keine Repositories freigegeben</p>
+                                </div>
+                            </div>
+
+                            <!-- Git Authentifizierung -->
+                            <div class="border rounded p-4">
+                                <h3 class="text-lg font-medium mb-4">Git-Authentifizierung</h3>
+
+                                <div class="mb-4">
+                                    <p class="text-sm text-gray-600 mb-2">Für private Repositories musst du ein persönliches Zugriffstoken hinzufügen:</p>
+
+                                    <div class="grid grid-cols-1 gap-2">
+                                        <div class="form-group">
+                                            <label for="token-service">Git-Service:</label>
+                                            <select id="token-service" class="w-full p-2 border border-gray-300 rounded">
+                                                <option value="github">GitHub</option>
+                                                <option value="gitlab">GitLab</option>
+                                                <option value="custom">Benutzerdefiniert</option>
+                                            </select>
+                                        </div>
+
+                                        <div id="custom-domain-container" class="form-group hidden">
+                                            <label for="token-domain">Benutzerdefinierte Domain:</label>
+                                            <input type="text" id="token-domain" class="w-full p-2 border border-gray-300 rounded"
+                                                   placeholder="z.B. git.example.com">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="token-value">Persönliches Zugriffstoken:</label>
+                                            <input type="password" id="token-value" class="w-full p-2 border border-gray-300 rounded">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <button id="save-token-button" class="primary-button">
+                                                <i class="fas fa-key mr-2"></i> Token speichern
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <small class="form-hint">
+                                        Die Tokens werden verschlüsselt auf deinem Computer gespeichert.
+                                        <br>
+                                        <a href="#" id="github-token-help">Anleitung: GitHub-Token erstellen</a> |
+                                        <a href="#" id="gitlab-token-help">Anleitung: GitLab-Token erstellen</a>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Erweiterte Einstellungen -->
                     <div class="tab-pane" id="advanced-tab">
                         <div class="form-group">
@@ -344,6 +440,112 @@
         </button>
     </div>
 </template>
+
+<!-- Template für Repository-Elemente -->
+<template id="repository-item-template">
+    <div class="repository-item border rounded p-3 mb-2">
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="repo-name font-medium flex items-center">
+                    <i class="fas fa-code-branch mr-2"></i> <span class="repo-name-text"></span>
+                </div>
+                <div class="repo-url text-sm text-gray-600"></div>
+                <div class="repo-status text-xs mt-1">
+                    <span class="repo-status-text"></span>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button class="browse-repo-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+                <button class="sync-repo-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-sync"></i>
+                </button>
+                <button class="remove-repo-button danger-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Template für Ordner-Elemente -->
+<template id="folder-item-template">
+    <div class="folder-item border rounded p-3 mb-2">
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="folder-name font-medium flex items-center">
+                    <i class="fas fa-folder mr-2"></i> <span class="folder-name-text"></span>
+                </div>
+                <div class="folder-path text-sm text-gray-600"></div>
+            </div>
+            <div class="flex gap-2">
+                <button class="browse-folder-button secondary-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+                <button class="remove-folder-button danger-button text-sm py-1 px-2 flex items-center justify-center">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- File Browser Modal -->
+<div id="file-browser-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="file-browser-title"><i class="fas fa-folder-open"></i> Datei Browser</h2>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="file-browser-nav mb-4">
+                <div class="flex items-center mb-2">
+                    <button id="file-browser-back" class="secondary-button text-sm py-1 px-2 mr-2">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <span id="file-browser-path" class="text-sm text-gray-600 font-mono"></span>
+                </div>
+
+                <div class="flex">
+                    <input type="text" id="file-search-input" class="w-full p-2 border border-gray-300 rounded-l"
+                           placeholder="In Dateien suchen...">
+                    <button id="file-search-button" class="primary-button rounded-l-none">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="file-browser-content" class="border rounded p-2 max-h-96 overflow-auto">
+                <div class="loading">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+            </div>
+
+            <div id="file-content-viewer" class="border rounded p-2 mt-4 hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 id="file-content-name" class="text-lg font-medium"></h3>
+                    <button id="file-content-close" class="secondary-button text-sm py-1 px-2">
+                        <i class="fas fa-times"></i> Schließen
+                    </button>
+                </div>
+                <pre id="file-content-pre" class="bg-gray-50 p-4 rounded max-h-96 overflow-auto text-sm font-mono"></pre>
+            </div>
+        </div>
+        <div class="modal-footer p-4 flex justify-between">
+            <div>
+                <button id="file-browser-send-to-chat" class="primary-button">
+                    <i class="fas fa-paper-plane mr-2"></i> In Chat einfügen
+                </button>
+            </div>
+            <button id="file-browser-close" class="secondary-button">
+                Schließen
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Notification Template -->
 <div id="notification-container" class="fixed bottom-4 right-4 z-50"></div>

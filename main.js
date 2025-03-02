@@ -5,11 +5,13 @@ const express                                                  = require('expres
 const axios                                                    = require('axios');
 const {searchModels}                                           = require('./huggingface');
 const LLMEngine                                                = require('./llm-engine');
+const GitConnector                                             = require('./git-connector');
 
 // Globale Variablen für die Module
 let duckDuckGoSearch, fetchWebContent;
 let checkLMStudioStatus;
 let env;
+let gitConnector;
 
 // Globale Variablen für die Anwendung
 const expressApp = express();
@@ -20,6 +22,18 @@ let lmStudioCheckInterval;
 let llmEngine;
 let currentModel = null;
 let config       = {};
+
+function initGitConnector() {
+    // Konfiguration für den GitConnector vorbereiten
+    const gitConnectorConfig = {
+        dataPath: app.getPath('userData')
+    };
+
+    // GitConnector initialisieren
+    gitConnector = new GitConnector(gitConnectorConfig);
+
+    console.log('GitConnector initialisiert');
+}
 
 // Module asynchron laden
 async function loadModules() {
@@ -37,6 +51,7 @@ async function loadModules() {
 
         // Konfiguration laden
         config = env.getConfig();
+        initGitConnector()
         return true;
     } catch (error) {
         console.error('Fehler beim Laden der Module:', error);
@@ -212,13 +227,39 @@ function setupExpressRoutes() {
                 }
             }
 
+            const fileReferences = await extractFileReferences(message);
+            let fileContents = '';
+
+            if (fileReferences.length > 0) {
+                // Benachrichtigung anzeigen
+                await appendMessage('system', `Lade ${fileReferences.length} referenzierte Datei(en)...`);
+
+                // Dateien laden
+                for (const fileRef of fileReferences) {
+                    try {
+                        const fileContent = await window.electronAPI.readFile({
+                            sourceId: fileRef.sourceId,
+                            filePath: fileRef.path
+                        });
+
+                        if (fileContent.success) {
+                            fileContents += `\nInhalt von ${fileRef.path}:\n\`\`\`\n${fileContent.content}\n\`\`\`\n\n`;
+                        } else {
+                            fileContents += `\nFehler beim Laden von ${fileRef.path}: ${fileContent.error}\n\n`;
+                        }
+                    } catch (error) {
+                        fileContents += `\nFehler beim Laden von ${fileRef.path}: ${error.message}\n\n`;
+                    }
+                }
+            }
+
             // System-Prompt und LM Studio URL aus den Einstellungen laden
             const systemPrompt = config.systemPrompt;
 
             // Vollständiger Prompt mit Kontext
             const fullMessage = contextInfo
-                ? `${contextInfo}\nFrage: ${actualMessage}`
-                : actualMessage;
+                ? `${contextInfo}\nFrage: ${actualMessage}${fileContents}`
+                : `${actualMessage}${fileContents}`;
 
             // Streaming-Header setzen
             res.setHeader('Content-Type', 'text/event-stream');
@@ -448,6 +489,56 @@ function shouldPerformWebSearch(message) {
     }
 
     return shouldSearch;
+}
+
+/**
+ * Extrahiert Dateireferenzen aus dem Text
+ * @param {string} text - Text, der auf Dateireferenzen geprüft werden soll
+ * @returns {Promise<Array>} - Array mit Dateireferenzen
+ */
+async function extractFileReferences(text) {
+    try {
+        // Alle Quellen abrufen
+        const sources = await window.electronAPI.getAllSources();
+        if (!sources.success) return [];
+
+        const references = [];
+
+        // Repositories prüfen
+        for (const [repoId, repo] of Object.entries(sources.repositories)) {
+            // Suche nach Referenzen im Format: repo:name/pfad/zur/datei.js
+            const repoRegex = new RegExp(`repo:${repo.name}/([\\w\\-./]+)`, 'g');
+            let match;
+
+            while ((match = repoRegex.exec(text)) !== null) {
+                references.push({
+                    sourceId: repoId,
+                    path: match[1],
+                    type: 'repository'
+                });
+            }
+        }
+
+        // Ordner prüfen
+        for (const [folderId, folder] of Object.entries(sources.folders)) {
+            // Suche nach Referenzen im Format: folder:name/pfad/zur/datei.js
+            const folderRegex = new RegExp(`folder:${folder.name}/([\\w\\-./]+)`, 'g');
+            let match;
+
+            while ((match = folderRegex.exec(text)) !== null) {
+                references.push({
+                    sourceId: folderId,
+                    path: match[1],
+                    type: 'folder'
+                });
+            }
+        }
+
+        return references;
+    } catch (error) {
+        console.error('Fehler beim Extrahieren von Dateireferenzen:', error);
+        return [];
+    }
 }
 
 // Electron App erstellen
@@ -975,6 +1066,156 @@ app.whenReady().then(async () => {
             return {success: true, models};
         } catch (error) {
             console.error('Fehler bei der Modellsuche:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    // Ordner auswählen
+    ipcMain.handle('select-folder', async () => {
+        try {
+            const result = await dialog.showOpenDialog(mainWindow, {
+                properties: ['openDirectory']
+            });
+
+            if (result.canceled) {
+                return {success: false, canceled: true};
+            }
+
+            const folderPath = result.filePaths[0];
+            const folderName = path.basename(folderPath);
+
+            // Ordner zum GitConnector hinzufügen
+            const folderId = gitConnector.addFolder({
+                name: folderName,
+                path: folderPath
+            });
+
+            return {
+                success: true,
+                folderId,
+                folderPath,
+                folderName
+            };
+        } catch (error) {
+            console.error('Fehler beim Auswählen des Ordners:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    // Repository hinzufügen
+    ipcMain.handle('add-repository', async (event, {url, branch, name}) => {
+        try {
+            // Repository-URL überprüfen
+            const repoInfo = await gitConnector.checkRepositoryUrl(url);
+
+            if (!repoInfo.success) {
+                return {success: false, error: repoInfo.error};
+            }
+
+            // Repository hinzufügen
+            const repoId = gitConnector.addRepository({
+                name        : name || repoInfo.name,
+                url,
+                branch      : branch || 'main',
+                type        : repoInfo.type,
+                customDomain: repoInfo.customDomain,
+                baseUrl     : repoInfo.baseUrl,
+                isPrivate   : repoInfo.isPrivate
+            });
+
+            // Repository synchronisieren
+            const syncResult = await gitConnector.syncRepository(repoId);
+
+            return {
+                success: true,
+                repoId,
+                ...repoInfo,
+                syncResult
+            };
+        } catch (error) {
+            console.error('Fehler beim Hinzufügen des Repositories:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    // Git-Token speichern
+    ipcMain.handle('save-git-token', async (event, {service, token, domain}) => {
+        try {
+            const tokenId = gitConnector.saveToken(service, token, domain);
+
+            return {
+                success: true,
+                tokenId
+            };
+        } catch (error) {
+            console.error('Fehler beim Speichern des Git-Tokens:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+// Dateien in einem Ordner oder Repository auflisten
+    ipcMain.handle('list-files', async (event, {sourceId, subPath}) => {
+        try {
+            return await gitConnector.listFiles(sourceId, subPath || '');
+        } catch (error) {
+            console.error('Fehler beim Auflisten der Dateien:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+// Datei lesen
+    ipcMain.handle('read-file', async (event, {sourceId, filePath}) => {
+        try {
+            return await gitConnector.readFile(sourceId, filePath);
+        } catch (error) {
+            console.error('Fehler beim Lesen der Datei:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    // In Dateien suchen
+    ipcMain.handle('search-files', async (event, {sourceId, query, options}) => {
+        try {
+            return await gitConnector.searchFiles(sourceId, query, options);
+        } catch (error) {
+            console.error('Fehler bei der Dateisuche:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    // Repository synchronisieren
+    ipcMain.handle('sync-repository', async (event, {repoId}) => {
+        try {
+            return await gitConnector.syncRepository(repoId);
+        } catch (error) {
+            console.error('Fehler bei der Repository-Synchronisierung:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    // Quelle (Ordner/Repository) entfernen
+    ipcMain.handle('remove-source', async (event, {sourceId}) => {
+        try {
+            return await gitConnector.removeSource(sourceId);
+        } catch (error) {
+            console.error('Fehler beim Entfernen der Quelle:', error);
+            return {success: false, error: error.message};
+        }
+    });
+
+    // Alle freigegebenen Quellen abrufen
+    ipcMain.handle('get-all-sources', async () => {
+        try {
+            const repositories = gitConnector.getAllRepositories();
+            const folders      = gitConnector.getAllFolders();
+
+            return {
+                success: true,
+                repositories,
+                folders
+            };
+        } catch (error) {
+            console.error('Fehler beim Abrufen der Quellen:', error);
             return {success: false, error: error.message};
         }
     });
