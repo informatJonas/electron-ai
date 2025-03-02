@@ -1,48 +1,59 @@
-// llm-engine.js - Modul für die LLM-Integration
-const path   = require('path');
-const fs     = require('fs');
-const {app}  = require('electron');
+// src/main/llm/llm-engine.js
+// Module for LLM integration using node-llama-cpp
+
+const path = require('path');
+const fs = require('fs');
+const { app } = require('electron');
 const AdmZip = require('adm-zip');
+const { ensureDirectoryExists } = require('../utils/file-utils');
 
+/**
+ * LLM Engine class for handling local AI models
+ */
 class LLMEngine {
+    /**
+     * Creates a new LLM Engine instance
+     * @param {Object} config - Configuration options
+     */
     constructor(config) {
-        this.config        = config;
-        this.model         = null;
-        this.context       = null;
-        this.llama         = null;
+        this.config = config;
+        this.model = null;
+        this.context = null;
+        this.llama = null;
         this.isInitialized = false;
-        this.modelsDir     = path.join(app.getPath('userData'), config.modelDir || 'models');
+        this.currentModel = null;
 
-        // Stelle sicher, dass das Modellverzeichnis existiert
-        if (!fs.existsSync(this.modelsDir)) {
-            fs.mkdirSync(this.modelsDir, {recursive: true});
-        }
+        // Ensure models directory exists
+        this.modelsDir = path.join(app.getPath('userData'), config.modelDir || 'models');
+        ensureDirectoryExists(this.modelsDir);
 
-        // Initialisiere Llama beim Konstruktor
+        // Initialize Llama
         this.initializeLlama();
     }
 
     /**
-     * Initialisiert das Llama-Modul
+     * Initializes the Llama module
+     * @returns {Promise<void>}
      */
     async initializeLlama() {
         try {
-            const llamaModule  = await import('node-llama-cpp');
-            this.llama         = {
-                getLlama        : llamaModule.getLlama,
+            const llamaModule = await import('node-llama-cpp');
+            this.llama = {
+                getLlama: llamaModule.getLlama,
                 LlamaChatSession: llamaModule.LlamaChatSession
             };
             this.isInitialized = true;
         } catch (error) {
-            console.error('Fehler bei der Initialisierung von Llama:', error);
+            console.error('Error initializing Llama:', error);
             this.isInitialized = false;
         }
     }
 
     /**
-     * Lädt ein Modell
-     * @param {string} modelPath - Pfad zur Modelldatei
-     * @param {object} options - Modelloptionen
+     * Loads a model
+     * @param {string} modelPath - Path to the model file
+     * @param {Object} options - Model options
+     * @returns {Promise<boolean>} - Success status
      */
     async loadModel(modelPath, options = {}) {
         if (!this.llama) {
@@ -50,9 +61,9 @@ class LLMEngine {
         }
 
         try {
-            // Warte auf Initialisierung der Module
+            // Wait for modules to initialize
             if (!this.isInitialized) {
-                console.log('Warte auf Initialisierung der Module...');
+                console.log('Waiting for modules to initialize...');
                 await new Promise(resolve => {
                     const checkInterval = setInterval(() => {
                         if (this.isInitialized) {
@@ -68,66 +79,75 @@ class LLMEngine {
                 : path.join(this.modelsDir, modelPath);
 
             if (!fs.existsSync(fullModelPath)) {
-                throw new Error(`Modell nicht gefunden: ${fullModelPath}`);
+                throw new Error(`Model not found: ${fullModelPath}`);
             }
 
-            // Standardoptionen mit übergebenen Optionen zusammenführen
+            // Merge default options with provided options
             const modelOptions = {
                 modelPath: fullModelPath,
-                //contextSize: options.contextSize || this.config.contextSize || 2048,
-                threads  : options.threads || this.config.threads || 4,
+                threads: options.threads || this.config.threads || 4,
                 gpuLayers: 'auto',
                 ...options
             };
 
-            // Bestehendes Modell schließen, falls vorhanden
+            // Close existing model if any
             if (this.model) {
-                console.log('Schließe bestehendes Modell...');
+                console.log('Closing existing model...');
                 if (this.context) {
                     await this.context.dispose();
                 }
                 await this.model.dispose();
-                this.model   = null;
+                this.model = null;
                 this.context = null;
             }
 
-            // Llama laden und Modell initialisieren
+            // Load Llama and initialize model
             const llama = await this.llama.getLlama();
-            this.model  = await llama.loadModel(modelOptions);
+            this.model = await llama.loadModel(modelOptions);
 
-            // Kontext erstellen
+            // Create context
             this.context = await this.model.createContext({
                 contextSize: options.contextSize || this.config.contextSize || 2048
             });
+
+            // Save current model name
+            this.currentModel = modelPath;
+
             return true;
         } catch (error) {
-            console.error('Fehler beim Laden des Modells:', error);
+            console.error('Error loading model:', error);
             return false;
         }
     }
 
+    /**
+     * Generates a chat response
+     * @param {Array} messages - Chat messages
+     * @param {Object} options - Generation options
+     * @returns {Promise<string>} - Generated response
+     */
     async generateChatResponse(messages, options = {}) {
         if (!this.model || !this.context) {
-            throw new Error('Es ist kein Modell oder Kontext aktiv.');
+            throw new Error('No model or context active.');
         }
 
         try {
-            // Extrahiere den letzten Benutzer-Prompt
+            // Extract the last user prompt
             const lastUserMessage = messages.filter(m => m.role === 'user').pop();
 
             if (!lastUserMessage) {
-                throw new Error('Kein Benutzer-Prompt gefunden');
+                throw new Error('No user prompt found');
             }
 
-            // Optionen für die Generierung
+            // Options for generation
             const inferenceOptions = {
                 temperature: options.temperature || 0.7,
-                maxTokens  : options.maxTokens || 1024,
-                topP       : options.topP || 0.95,
+                maxTokens: options.maxTokens || 1024,
+                topP: options.topP || 0.95,
                 ...options
             };
 
-            // Konvertiere Nachrichten in einen formatierten Prompt
+            // Format messages into a prompt
             let formattedPrompt = messages.map(msg => {
                 switch (msg.role) {
                     case 'system':
@@ -141,49 +161,50 @@ class LLMEngine {
                 }
             }).join('\n') + '\n<|im_start|>assistant\n';
 
-            // Erstelle eine Chat-Sitzung
-            const session    = new this.llama.LlamaChatSession({
+            // Create a chat session
+            const session = new this.llama.LlamaChatSession({
                 contextSequence: this.context.getSequence() ?? await this.model.createContext(),
-                systemPrompt   : this.config.systemPrompt
+                systemPrompt: this.config.systemPrompt
             });
-            let fullResponse = '';
-            const model      = this.model;
 
-            // Abbruch-Signal behandeln
+            let fullResponse = '';
+            const model = this.model;
+
+            // Handle abort signal
             if (options.signal) {
                 options.signal.addEventListener('abort', () => {
-                    // Hier könnte man versuchen, die laufende Session zu beenden
-                    // Die genaue Implementierung hängt von der LLM-Bibliothek ab
-                    console.log('LLM Generierung abgebrochen');
-                    // Möglicherweise die Session beenden oder zurücksetzen
+                    console.log('LLM Generation aborted');
                 });
             }
 
-            // Wenn ein Stream-Callback definiert ist, verwenden wir die Streaming-API
+            // Use streaming if onToken callback is defined
             await session.prompt(formattedPrompt, {
                 ...inferenceOptions,
                 onToken: (token) => {
                     const tokenText = model.detokenize(token);
                     fullResponse += tokenText;
 
-                    options.onToken(tokenText);
+                    if (options.onToken) {
+                        options.onToken(tokenText);
+                    }
                 }
             });
 
             return fullResponse;
         } catch (error) {
-            // Abbruch abfangen
+            // Catch abort
             if (error.message === 'AbortError' || error.name === 'AbortError') {
                 throw new Error('AbortError');
             }
 
-            console.error('Fehler bei der Chat-Antwort:', error);
+            console.error('Error generating chat response:', error);
             throw error;
         }
     }
 
     /**
-     * Gibt alle verfügbaren Modelle zurück
+     * Gets all available models
+     * @returns {Promise<Array<string>>} - List of available models
      */
     async getAvailableModels() {
         try {
@@ -194,22 +215,23 @@ class LLMEngine {
                 file.endsWith('.ggml')
             );
         } catch (error) {
-            console.error('Fehler beim Abrufen der Modelle:', error);
+            console.error('Error getting available models:', error);
             return [];
         }
     }
 
     /**
-     * Herunterladefunktionalität für Modelle
-     * @param {string} url - URL zum Herunterladen
-     * @param {string} modelName - Name des Modells
-     * @param {BrowserWindow} window - Electron-Fenster für Download-Fortschritt
+     * Downloads a model
+     * @param {string} url - URL to download
+     * @param {string} modelName - Name of the model
+     * @param {BrowserWindow} window - Electron window for progress
+     * @returns {Promise<boolean>} - Success status
      */
     async downloadModel(url, modelName, window) {
         try {
-            // Warte auf Initialisierung der Module
+            // Wait for modules to initialize
             if (!this.isInitialized) {
-                console.log('Warte auf Initialisierung der Module...');
+                console.log('Waiting for modules to initialize...');
                 await new Promise(resolve => {
                     const checkInterval = setInterval(() => {
                         if (this.isInitialized) {
@@ -220,24 +242,24 @@ class LLMEngine {
                 });
             }
 
-            console.log(`Starte Download für ${modelName} von ${url}`);
+            console.log(`Starting download for ${modelName} from ${url}`);
 
-            // Bestimme den Zieldateipfad
+            // Determine target file path
             const targetFile = path.join(this.modelsDir, modelName);
 
-            // Stelle sicher, dass die Datei noch nicht existiert
+            // Check if file already exists
             if (fs.existsSync(targetFile)) {
-                throw new Error(`Die Datei ${modelName} existiert bereits`);
+                throw new Error(`File ${modelName} already exists`);
             }
 
-            // Download mit electron-dl (dynamisch geladen)
-            const {download} = await import('electron-dl');
-            const dl         = await download(window, url, {
-                directory : this.modelsDir,
-                filename  : modelName,
+            // Download with electron-dl (dynamically loaded)
+            const { download } = await import('electron-dl');
+            const dl = await download(window, url, {
+                directory: this.modelsDir,
+                filename: modelName,
                 onProgress: (progress) => {
                     window.webContents.send('model-download-progress', {
-                        text    : `Lade ${modelName} herunter...`,
+                        text: `Downloading ${modelName}...`,
                         progress: progress.percent * 100
                     });
                 }
@@ -245,67 +267,69 @@ class LLMEngine {
 
             console.log(`Downloaded ${dl}`);
 
-            console.log(`Download abgeschlossen: ${dl.getSavePath()}`);
+            console.log(`Download completed: ${dl.getSavePath()}`);
 
-            // Wenn es sich um eine ZIP-Datei handelt, entpacken
+            // Extract if it's a ZIP file
             if (modelName.endsWith('.zip')) {
-                console.log('Entpacke ZIP-Datei...');
+                console.log('Extracting ZIP file...');
 
                 window.webContents.send('model-download-progress', {
-                    text    : 'Entpacke Modell...',
+                    text: 'Extracting model...',
                     progress: 99
                 });
 
                 const zip = new AdmZip(dl.getSavePath());
                 zip.extractAllTo(this.modelsDir, true);
 
-                // ZIP-Datei nach dem Entpacken löschen
+                // Delete ZIP file after extraction
                 fs.unlinkSync(dl.getSavePath());
 
-                console.log('ZIP-Datei entpackt und gelöscht');
+                console.log('ZIP file extracted and deleted');
             }
 
             window.webContents.send('model-download-progress', {
-                text    : 'Download abgeschlossen',
+                text: 'Download completed',
                 progress: 100
             });
 
             return true;
         } catch (error) {
-            console.error('Fehler beim Herunterladen des Modells:', error);
+            console.error('Error downloading model:', error);
             throw error;
         }
     }
 
     /**
-     * Löscht ein Modell
-     * @param {string} modelName - Name des zu löschenden Modells
+     * Deletes a model
+     * @param {string} modelName - Name of the model to delete
+     * @returns {Promise<boolean>} - Success status
      */
     async deleteModel(modelName) {
         try {
             const modelPath = path.join(this.modelsDir, modelName);
 
             if (!fs.existsSync(modelPath)) {
-                throw new Error(`Das Modell ${modelName} existiert nicht`);
+                throw new Error(`Model ${modelName} does not exist`);
             }
 
-            // Wenn es sich um das aktuell geladene Modell handelt, zuerst schließen
-            if (this.model && this.config.lastUsedModel === modelName) {
+            // If it's the currently loaded model, close it first
+            if (this.model && this.currentModel === modelName) {
                 if (this.context) {
                     await this.context.dispose();
                 }
                 await this.model.dispose();
-                this.model   = null;
+                this.model = null;
                 this.context = null;
+                this.currentModel = null;
             }
 
-            // Datei löschen
+            // Delete file
             fs.unlinkSync(modelPath);
-            console.log(`Modell ${modelName} wurde gelöscht`);
+            console.log(`Model ${modelName} has been deleted`);
 
             return true;
         } catch (error) {
-            console.error('Fehler beim Löschen des Modells:', error);
+            console.error('Error deleting model:', error);
             throw error;
         }
     }

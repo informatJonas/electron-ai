@@ -1,8 +1,13 @@
-// Preload-Skript für Electron (CommonJS-Version)
+// src/main/preload.js
+// Preload script for Electron (secure bridge between renderer and main processes)
+
 const { contextBridge, ipcRenderer } = require('electron');
 const MarkdownIt = require('markdown-it');
 const hljs = require('highlight.js');
 
+/**
+ * Initialize Markdown parser with syntax highlighting
+ */
 const md = new MarkdownIt({
     html: true,
     xhtmlOut: true,
@@ -14,20 +19,30 @@ const md = new MarkdownIt({
             try {
                 return hljs.highlight(str, {language: lang}).value;
             } catch (__) {
+                // Fallback to no highlighting on error
             }
         }
-        return ''; // use external default escaping
+        return ''; // Use external default escaping
     }
 });
 
-// Markdown-API für den Renderer-Prozess verfügbar machen
+/**
+ * Make Markdown API available to the renderer process
+ */
 contextBridge.exposeInMainWorld('markdownAPI', {
+    /**
+     * Renders markdown text to HTML
+     * @param {string} markdown - Markdown text to render
+     * @returns {string} - Rendered HTML
+     */
     render: (markdown) => md.render(markdown)
 });
 
-// API für den Renderer-Prozess verfügbar machen
+/**
+ * Make Electron API available to the renderer process
+ */
 contextBridge.exposeInMainWorld('electronAPI', {
-    // Einstellungen
+    // Settings
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
     resetSettings: () => ipcRenderer.invoke('reset-settings'),
@@ -35,39 +50,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // LM Studio
     checkLMStudio: () => ipcRenderer.invoke('check-lm-studio'),
 
-    // Externe Links
+    // External links
     openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
 
-    // LLM-Modellverwaltung
+    // LLM model management
     getAvailableModels: () => ipcRenderer.invoke('get-available-models'),
     loadModel: (modelPath) => ipcRenderer.invoke('load-model', modelPath),
     downloadModel: (options) => ipcRenderer.invoke('download-model', options),
     deleteModel: (modelName) => ipcRenderer.invoke('delete-model', modelName),
 
-    // Ereignisse empfangen
+    // Event listeners
     onLMStudioStatus: (callback) => {
         const wrappedCallback = (_, status) => callback(status);
         ipcRenderer.on('lm-studio-status', wrappedCallback);
         return () => ipcRenderer.removeListener('lm-studio-status', wrappedCallback);
     },
 
-    // Modell-Status-Updates
+    // Model status updates
     onModelStatus: (callback) => {
         const wrappedCallback = (_, status) => callback(status);
         ipcRenderer.on('model-status', wrappedCallback);
         return () => ipcRenderer.removeListener('model-status', wrappedCallback);
     },
 
-    // Modell-Download-Fortschritt
+    // Model download progress
     onModelProgress: (callback) => {
         const wrappedCallback = (_, progress) => callback(progress);
         ipcRenderer.on('model-download-progress', wrappedCallback);
         return () => ipcRenderer.removeListener('model-download-progress', wrappedCallback);
     },
 
+    // Manual status checks
     checkLMStudioManually: () => ipcRenderer.invoke('check-lm-studio'),
     checkLMStudioStatus: () => ipcRenderer.invoke('check-lm-studio'),
 
+    // UI event listeners
     onShowSettings: (callback) => {
         ipcRenderer.on('show-settings', (_, config) => callback(config));
     },
@@ -75,14 +92,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('settings-reset', (_, config) => callback(config));
     },
 
-    // Tab für Modelle anzeigen
+    // Show models tab
     onShowModelsTab: (callback) => {
         ipcRenderer.on('show-models-tab', () => callback());
     },
 
+    // Model search
     searchHuggingFaceModels: (query) => ipcRenderer.invoke('search-huggingface-models', query),
 
-    // Git und Ordner-Verwaltung
+    // File and Git management
     selectFolder: () => ipcRenderer.invoke('select-folder'),
     addRepository: (options) => ipcRenderer.invoke('add-repository', options),
     saveGitToken: (options) => ipcRenderer.invoke('save-git-token', options),
@@ -93,14 +111,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeSource: (options) => ipcRenderer.invoke('remove-source', options),
     getAllSources: () => ipcRenderer.invoke('get-all-sources'),
 
-    // Status-Updates für die Dateiverarbeitung
+    // Processing status updates
     onProcessingStatus: (callback) => {
         const wrappedCallback = (_, status) => callback(status);
         ipcRenderer.on('processing-status', wrappedCallback);
         return () => ipcRenderer.removeListener('processing-status', wrappedCallback);
     },
 
-    // Chat-Historie
+    // Chat history
     getChatHistory: () => ipcRenderer.invoke('get-chat-history'),
     getAllConversations: () => ipcRenderer.invoke('get-all-conversations'),
     loadConversation: (options) => ipcRenderer.invoke('load-conversation', options),
@@ -108,6 +126,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     startNewConversation: () => ipcRenderer.invoke('start-new-conversation'),
     clearAllConversations: () => ipcRenderer.invoke('clear-all-conversations'),
 
-    // Abbruch der aktuellen Anfrage
+    // Cancel current request
     cancelCurrentRequest: () => ipcRenderer.invoke('cancel-current-request'),
 });

@@ -1,86 +1,97 @@
-// chat-history.js - Modul für die Verwaltung der Chat-Historie
+// src/main/services/chat-history.js
+// Module for chat history management
+
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
+const { ensureDirectoryExists } = require('../utils/file-utils');
+const { truncate, generateUniqueId } = require('../utils/string-utils');
 
+/**
+ * Chat History Manager class
+ */
 class ChatHistoryManager {
+    /**
+     * Creates a new ChatHistoryManager instance
+     * @param {Object} config - Configuration options
+     */
     constructor(config) {
-        // Verzeichnis für die Speicherung der Chat-Historie
+        // Directory for storing chat history
         this.historyDir = path.join(app.getPath('userData'), 'chat_history');
 
-        // Maximale Anzahl der zu speichernden Nachrichten pro Konversation
+        // Maximum number of messages to store per conversation
         this.maxMessagesPerConversation = config.maxHistoryMessages || 20;
 
-        // Maximale Anzahl zu speichernder Konversationen
+        // Maximum number of conversations to store
         this.maxConversations = config.maxConversations || 10;
 
-        // Aktueller Verlauf im Speicher
+        // Current history in memory
         this.currentSessionId = null;
         this.currentHistory = [];
 
-        // Initialisierung
+        // Initialize
         this.initialize();
     }
 
     /**
-     * Initialisiert das Verzeichnis für die Chat-Historie
+     * Initializes the chat history directory
      */
     initialize() {
         try {
-            if (!fs.existsSync(this.historyDir)) {
-                fs.mkdirSync(this.historyDir, { recursive: true });
-            }
+            // Ensure history directory exists
+            ensureDirectoryExists(this.historyDir);
 
-            // Aufräumen - alte Konversationen entfernen, wenn die maximale Anzahl überschritten wird
+            // Clean up old conversations if maximum is exceeded
             this.cleanupOldConversations();
 
-            // Neue Konversation starten
+            // Start new conversation
             this.startNewConversation();
         } catch (error) {
-            console.error('Fehler bei der Initialisierung der Chat-Historie:', error);
+            console.error('Error initializing chat history:', error);
         }
     }
 
     /**
-     * Startet eine neue Konversation
-     * @returns {string} - ID der neuen Konversation
+     * Starts a new conversation
+     * @returns {string} - ID of the new conversation
      */
     startNewConversation() {
-        this.currentSessionId = `conversation_${Date.now()}`;
+        this.currentSessionId = generateUniqueId('conversation_');
         this.currentHistory = [];
         return this.currentSessionId;
     }
 
     /**
-     * Fügt eine Nachricht zur Historie hinzu
-     * @param {string} role - Rolle des Absenders ('user' oder 'assistant')
-     * @param {string} content - Inhalt der Nachricht
+     * Adds a message to the history
+     * @param {string} role - Role of the sender ('user' or 'assistant')
+     * @param {string} content - Message content
+     * @returns {Object} - Added message
      */
     addMessage(role, content) {
-        // Füge die Nachricht zum aktuellen Verlauf hinzu
+        // Add message to current history
         const message = { role, content, timestamp: Date.now() };
         this.currentHistory.push(message);
 
-        // Begrenze die Anzahl der Nachrichten
+        // Limit number of messages
         if (this.currentHistory.length > this.maxMessagesPerConversation) {
-            // Behalte den System-Prompt (falls vorhanden) und entferne die ältesten Nachrichten
+            // Keep system prompt (if any) and remove oldest messages
             const systemPrompt = this.currentHistory.find(msg => msg.role === 'system');
             this.currentHistory = this.currentHistory.slice(-this.maxMessagesPerConversation);
 
-            // Stelle sicher, dass der System-Prompt erhalten bleibt
+            // Ensure system prompt is preserved
             if (systemPrompt && !this.currentHistory.some(msg => msg.role === 'system')) {
                 this.currentHistory.unshift(systemPrompt);
             }
         }
 
-        // Speichere den aktualisierten Verlauf
+        // Save updated history
         this.saveCurrentHistory();
 
         return message;
     }
 
     /**
-     * Speichert den aktuellen Chatverlauf
+     * Saves the current chat history
      */
     saveCurrentHistory() {
         try {
@@ -91,14 +102,14 @@ class ChatHistoryManager {
                 messages: this.currentHistory
             }, null, 2));
         } catch (error) {
-            console.error('Fehler beim Speichern der Chat-Historie:', error);
+            console.error('Error saving chat history:', error);
         }
     }
 
     /**
-     * Lädt eine bestimmte Konversation
-     * @param {string} conversationId - ID der zu ladenden Konversation
-     * @returns {Array} - Nachrichten der Konversation
+     * Loads a specific conversation
+     * @param {string} conversationId - ID of the conversation to load
+     * @returns {Array} - Messages of the conversation
      */
     loadConversation(conversationId) {
         try {
@@ -113,24 +124,24 @@ class ChatHistoryManager {
 
             return [];
         } catch (error) {
-            console.error('Fehler beim Laden der Konversation:', error);
+            console.error('Error loading conversation:', error);
             return [];
         }
     }
 
     /**
-     * Gibt alle vorhandenen Konversationen zurück
-     * @returns {Array} - Liste der Konversationen
+     * Gets all existing conversations
+     * @returns {Array} - List of conversations
      */
     getAllConversations() {
         try {
             const conversations = [];
 
-            // Alle JSON-Dateien im Verzeichnis auflisten
+            // List all JSON files in the directory
             const files = fs.readdirSync(this.historyDir)
                 .filter(file => file.endsWith('.json'))
                 .sort((a, b) => {
-                    // Nach Datum absteigend sortieren
+                    // Sort by date descending
                     const statA = fs.statSync(path.join(this.historyDir, a));
                     const statB = fs.statSync(path.join(this.historyDir, b));
                     return statB.mtime.getTime() - statA.mtime.getTime();
@@ -140,7 +151,7 @@ class ChatHistoryManager {
                 const filePath = path.join(this.historyDir, file);
                 const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
-                // Erste Nachricht des Benutzers finden (für Titel)
+                // Find first user message (for title)
                 const firstUserMessage = data.messages.find(msg => msg.role === 'user');
 
                 conversations.push({
@@ -153,31 +164,26 @@ class ChatHistoryManager {
 
             return conversations;
         } catch (error) {
-            console.error('Fehler beim Abrufen der Konversationen:', error);
+            console.error('Error getting conversations:', error);
             return [];
         }
     }
 
     /**
-     * Generiert einen Titel für die Konversation basierend auf der ersten Nachricht
-     * @param {string} firstMessage - Erste Nachricht der Konversation
-     * @returns {string} - Generierter Titel
+     * Generates a title for the conversation based on first message
+     * @param {string} firstMessage - First message of the conversation
+     * @returns {string} - Generated title
      */
     generateConversationTitle(firstMessage) {
-        if (!firstMessage) return 'Neue Konversation';
+        if (!firstMessage) return 'New Conversation';
 
-        // Begrenzen auf die ersten 30 Zeichen
-        const truncated = firstMessage.length > 30
-            ? firstMessage.substring(0, 30) + '...'
-            : firstMessage;
-
-        return truncated;
+        return truncate(firstMessage, 30, true);
     }
 
     /**
-     * Löscht eine Konversation
-     * @param {string} conversationId - ID der zu löschenden Konversation
-     * @returns {boolean} - Erfolgsstatus
+     * Deletes a conversation
+     * @param {string} conversationId - ID of the conversation to delete
+     * @returns {boolean} - Success status
      */
     deleteConversation(conversationId) {
         try {
@@ -186,7 +192,7 @@ class ChatHistoryManager {
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
 
-                // Wenn die aktuelle Konversation gelöscht wurde, eine neue starten
+                // If current conversation was deleted, start a new one
                 if (this.currentSessionId === conversationId) {
                     this.startNewConversation();
                 }
@@ -196,14 +202,14 @@ class ChatHistoryManager {
 
             return false;
         } catch (error) {
-            console.error('Fehler beim Löschen der Konversation:', error);
+            console.error('Error deleting conversation:', error);
             return false;
         }
     }
 
     /**
-     * Löscht alle Konversationen
-     * @returns {boolean} - Erfolgsstatus
+     * Deletes all conversations
+     * @returns {boolean} - Success status
      */
     deleteAllConversations() {
         try {
@@ -214,18 +220,18 @@ class ChatHistoryManager {
                 fs.unlinkSync(path.join(this.historyDir, file));
             }
 
-            // Neue Konversation starten
+            // Start new conversation
             this.startNewConversation();
 
             return true;
         } catch (error) {
-            console.error('Fehler beim Löschen aller Konversationen:', error);
+            console.error('Error deleting all conversations:', error);
             return false;
         }
     }
 
     /**
-     * Bereinigt alte Konversationen, wenn die maximale Anzahl überschritten wird
+     * Cleans up old conversations if maximum is exceeded
      */
     cleanupOldConversations() {
         try {
@@ -236,9 +242,9 @@ class ChatHistoryManager {
                     const stat = fs.statSync(filePath);
                     return { file, mtime: stat.mtime.getTime() };
                 })
-                .sort((a, b) => b.mtime - a.mtime); // Neueste zuerst
+                .sort((a, b) => b.mtime - a.mtime); // Newest first
 
-            // Entferne ältere Konversationen, wenn die maximale Anzahl überschritten wird
+            // Remove older conversations if maximum is exceeded
             if (files.length > this.maxConversations) {
                 const toDelete = files.slice(this.maxConversations);
 
@@ -247,38 +253,38 @@ class ChatHistoryManager {
                 }
             }
         } catch (error) {
-            console.error('Fehler bei der Bereinigung alter Konversationen:', error);
+            console.error('Error cleaning up old conversations:', error);
         }
     }
 
     /**
-     * Gibt die aktuelle Chat-Historie zurück
-     * @returns {Array} - Aktuelle Chat-Historie
+     * Gets the current chat history
+     * @returns {Array} - Current chat history
      */
     getCurrentHistory() {
         return this.currentHistory;
     }
 
     /**
-     * Formatiert die Chat-Historie für die LLM-API, optional ohne die letzte Benutzeranfrage
-     * @param {null|String} systemPrompt - Optionaler System-Prompt
-     * @param {boolean} excludeLastUserMessage - Gibt an, ob die letzte Benutzeranfrage ausgeschlossen werden soll
-     * @returns {Array} - Chat-Historie im LLM-API-Format
+     * Formats the chat history for the LLM API, optionally without the last user request
+     * @param {string|null} systemPrompt - Optional system prompt
+     * @param {boolean} excludeLastUserMessage - Whether to exclude the last user request
+     * @returns {Array} - Chat history in LLM API format
      */
     getFormattedHistoryForLLM(systemPrompt = null, excludeLastUserMessage = false) {
         const formattedHistory = [];
 
-        // Füge den System-Prompt hinzu, wenn vorhanden
+        // Add system prompt if provided
         if (systemPrompt) {
             formattedHistory.push({ role: 'system', content: systemPrompt });
         }
 
-        // Kopie der aktuellen Historie erstellen
+        // Create copy of current history
         const historyToFormat = [...this.currentHistory];
 
-        // Letzte Benutzeranfrage entfernen, wenn gewünscht
+        // Remove last user request if desired
         if (excludeLastUserMessage && historyToFormat.length > 0) {
-            // Finde den Index der letzten Benutzeranfrage
+            // Find index of last user message
             let lastUserMessageIndex = -1;
             for (let i = historyToFormat.length - 1; i >= 0; i--) {
                 if (historyToFormat[i].role === 'user') {
@@ -287,13 +293,13 @@ class ChatHistoryManager {
                 }
             }
 
-            // Entferne die letzte Benutzeranfrage, wenn gefunden
+            // Remove last user message if found
             if (lastUserMessageIndex !== -1) {
                 historyToFormat.splice(lastUserMessageIndex, 1);
             }
         }
 
-        // Füge die Chat-Historie hinzu (ohne System-Prompt, falls bereits vorhanden)
+        // Add chat history (without system prompt if already added)
         historyToFormat.forEach(message => {
             if (message.role !== 'system' || !systemPrompt) {
                 formattedHistory.push({

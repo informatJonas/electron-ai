@@ -1,4 +1,5 @@
-/* styles.css */
+/* src/renderer/css/styles.css - Main application styles */
+
 :root {
     --primary-color: #2563eb;
     --primary-light: #3b82f6;
@@ -40,6 +41,7 @@ body {
     overflow: hidden;
 }
 
+/* Header Styles */
 header {
     background-color: var(--primary-color);
     color: white;
@@ -141,6 +143,7 @@ input:checked + .slider:before {
     border-radius: 50%;
 }
 
+/* Chat Container */
 .chat-container {
     display: flex;
     flex-direction: column;
@@ -217,7 +220,7 @@ input:checked + .slider:before {
     padding: 12px 16px;
     border: 1px solid var(--border-color);
     border-radius: 0;
-    resize: vertical; /* Erlaubt nur vertikales Resize */
+    resize: vertical;
     outline: none;
     font-size: 1rem;
     line-height: 1.5;
@@ -228,10 +231,10 @@ input:checked + .slider:before {
     border-color: var(--primary-light);
 }
 
-/* Responsive Layout für kleinere Bildschirme */
+/* Responsive Layout */
 @media (max-width: 768px) {
     #user-input {
-        max-height: 200px; /* Etwas kleiner auf mobilen Geräten */
+        max-height: 200px;
     }
 
     .chat-input-container {
@@ -305,19 +308,30 @@ input:checked + .slider:before {
 
 /* Code block styling */
 pre {
-    background-color: azure;
-    color: black;
-    border-radius: 5px;
+    background-color: #f8f9fb;
+    color: #24292e;
+    border-radius: 4px;
     padding: 12px;
     overflow-x: auto;
     margin: 10px 0;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9rem;
+    position: relative;
+    border: 1px solid #e1e4e8;
 }
 
 code {
-    font-family: 'Courier New', Courier, monospace;
-    padding: 2px 4px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: rgba(175, 184, 193, 0.2);
+    padding: 0.2em 0.4em;
     border-radius: 3px;
+}
+
+pre code {
+    background-color: transparent;
+    padding: 0;
+    font-size: 1em;
 }
 
 /* Loading indicator */
@@ -636,6 +650,10 @@ code {
     background-color: var(--error-color);
 }
 
+.notification.info {
+    background-color: #3498db;
+}
+
 /* Animation for loading */
 @keyframes typing-animation {
     0% {
@@ -674,31 +692,28 @@ code {
 
 .copy-button {
     position: absolute;
-    top: 0;
-    right: 0;
-    background-color: #4a5568;
-    color: #cbd5e0;
+    top: 8px;
+    right: 8px;
+    background-color: rgba(0, 0, 0, 0.1);
+    color: #4a5568;
     border: none;
-    padding: 5px 10px;
+    padding: 4px 8px;
     cursor: pointer;
     font-size: 0.8rem;
-    border-radius: 0;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+}
+
+.pre:hover .copy-button {
+    opacity: 1;
 }
 
 .copy-button:hover {
-    background-color: #2d3748;
+    background-color: rgba(0, 0, 0, 0.2);
 }
 
-/* Modellverwaltung-Styles */
-.model-item {
-    transition: all 0.3s ease;
-}
-
-.model-item:hover {
-    background-color: #f9fafb;
-}
-
-/* Fortschrittsbalken */
+/* Progress bar */
 progress {
     -webkit-appearance: none;
     appearance: none;
@@ -716,72 +731,28 @@ progress::-webkit-progress-value {
     border-radius: 0;
 }
 
-/* Hugging Face Modellsuche-Styling */
-.hf-model {
+/* Model and repository item styling */
+.model-item,
+.repository-item,
+.folder-item,
+.conversation-item {
     transition: all 0.2s ease;
     background-color: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    margin-bottom: 12px;
+    padding: 12px;
 }
 
-.hf-model:hover {
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+.model-item:hover,
+.repository-item:hover,
+.folder-item:hover,
+.conversation-item:hover {
     transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.hf-model .model-name {
-    color: var(--primary-color);
-}
-
-.file-item {
-    transition: background-color 0.2s ease;
-}
-
-.file-item:hover {
-    background-color: #e9f0fd;
-}
-
-.file-name {
-    word-break: break-all;
-}
-
-#hf-search-input {
-    transition: border-color 0.2s ease;
-}
-
-#hf-search-input:focus {
-    border-color: var(--primary-color);
-    outline: none;
-}
-
-#hf-search-button {
-    transition: background-color 0.2s ease;
-}
-
-#hf-search-button:hover {
-    background-color: var(--primary-light);
-}
-
-/* Info Notification Styling */
-.notification.info {
-    background-color: #3498db;
-}
-
-/* Styling für Dateireferenzen im Chat */
-.file-reference {
-    display: inline-block;
-    background-color: #e1f5fe;
-    border: 1px solid #81d4fa;
-    border-radius: 4px;
-    padding: 2px 6px;
-    margin: 2px 0;
-    font-family: monospace;
-    font-size: 0.9em;
-}
-
-/* Styling für die Dateibrowser-Modal-Inhalte */
-#file-browser-content {
-    min-height: 300px;
-}
-
+/* File browser styles */
 .file-browser-breadcrumb {
     display: flex;
     align-items: center;
@@ -812,7 +783,7 @@ progress::-webkit-progress-value {
     text-decoration: underline;
 }
 
-/* Badge für die Anzahl der ausgewählten Dateien */
+/* Badge for number of selected files */
 .selected-files-count {
     display: inline-flex;
     align-items: center;
@@ -824,4 +795,149 @@ progress::-webkit-progress-value {
     height: 24px;
     font-size: 0.8rem;
     margin-left: 8px;
+}
+
+/* File browser item styles */
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+}
+
+.file-item:last-child {
+    border-bottom: none;
+}
+
+.file-item:hover {
+    background-color: rgba(59, 130, 246, 0.05);
+}
+
+.file-item.selected {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.file-item .file-icon {
+    margin-right: 10px;
+    color: #64748b;
+}
+
+.file-item .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-item .file-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Markdown content styles */
+.markdown-content h1 {
+    font-size: 1.8rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid #eaecef;
+}
+
+.markdown-content h2 {
+    font-size: 1.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.8rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid #eaecef;
+}
+
+.markdown-content h3 {
+    font-size: 1.25rem;
+    margin-top: 1.2rem;
+    margin-bottom: 0.8rem;
+}
+
+.markdown-content h4 {
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    margin-bottom: 0.8rem;
+}
+
+.markdown-content p {
+    margin-bottom: 1rem;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+    padding-left: 2rem;
+}
+
+.markdown-content li {
+    margin-bottom: 0.5rem;
+}
+
+.markdown-content blockquote {
+    padding: 0.5rem 1rem;
+    color: #6a737d;
+    border-left: 0.25rem solid #dfe2e5;
+    margin: 1rem 0;
+}
+
+.markdown-content blockquote > :first-child {
+    margin-top: 0;
+}
+
+.markdown-content blockquote > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-content hr {
+    height: 0.25rem;
+    padding: 0;
+    margin: 1.5rem 0;
+    background-color: #e1e4e8;
+    border: 0;
+}
+
+.markdown-content table {
+    display: block;
+    width: 100%;
+    overflow: auto;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+.markdown-content table tr {
+    background-color: #fff;
+    border-top: 1px solid #c6cbd1;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+    padding: 6px 13px;
+    border: 1px solid #dfe2e5;
+}
+
+.markdown-content table tr:nth-child(2n) {
+    background-color: #f6f8fa;
+}
+
+.markdown-content img {
+    max-width: 100%;
+    box-sizing: content-box;
+    background-color: #fff;
+}
+
+.markdown-content a {
+    color: #0366d6;
+    text-decoration: none;
+}
+
+.markdown-content a:hover {
+    text-decoration: underline;
 }
