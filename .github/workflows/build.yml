@@ -133,6 +133,12 @@ jobs:
           mkdir -p output
           cp dist/*.AppImage output/KI-Assistant-${{ needs.release.outputs.version }}.AppImage
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KI-Assistant-Setup-${{ needs.release.outputs.version }}
+          path: output
+
   build-macos:
     name: Build macOS
     needs: release
@@ -168,6 +174,12 @@ jobs:
         run: |
           mkdir -p output
           cp dist/*.dmg output/KI-Assistant-${{ needs.release.outputs.version }}.dmg
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KI-Assistant-Setup-${{ needs.release.outputs.version }}
+          path: output
 
   finalize:
     name: Finalize Release
