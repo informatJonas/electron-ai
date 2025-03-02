@@ -24,8 +24,8 @@
     "electron"
   ],
   "author": {
-    "name": "KI-Assistant",
-    "email": ""
+    "name": "Jonas Hanisch",
+    "email": "jonas.hanisch@customable.de"
   },
   "license": "MIT",
   "dependencies": {

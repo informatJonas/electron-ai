@@ -40,7 +40,7 @@ jobs:
       - name: Create Release
         id: create_release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           VERSION: ${{ steps.get_version.outputs.version }}
         run: |
           gh release create v$VERSION \
@@ -97,10 +97,17 @@ jobs:
           name: KI-Assistant-Setup-${{ needs.release.outputs.version }}
           path: output
 
+      - name: Delete existing asset
+        run: |
+          gh release delete "v$VERSION" --yes --asset "KI-Assistant-Setup-${{ needs.release.outputs.version }}.exe" || echo "No existing asset to delete"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+
       - name: Upload release asset
         if: success()
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           $assetPath = "output/KI-Assistant-Setup-$env:VERSION.exe"
@@ -202,7 +209,7 @@ jobs:
 
       - name: Finalize release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           gh release edit v$VERSION --draft=false
