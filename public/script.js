@@ -1,5 +1,7 @@
 // script.js - Frontend-Funktionalität
 document.addEventListener('DOMContentLoaded', () => {
+    loadSources();
+
     // Element-Referenzen
     const chatMessages         = document.getElementById('chat-messages');
     const userInput            = document.getElementById('user-input');
@@ -82,9 +84,38 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentBrowsingPath   = '';
     let selectedFiles         = [];
     let browseHistory         = [];
+    let sources               = {};
 
     // Status-Tracking
     let isProcessing = false;
+
+    if (userInput) {
+        // Auto-resize des Textfeldes beim Tippen
+        userInput.addEventListener('input', function () {
+            // Zuerst Höhe auf auto setzen, um die Scrollhöhe zu bekommen
+            this.style.height    = 'auto';
+            // Die neue Höhe auf die Scrollhöhe beschränkt auf 300px setzen
+            this.style.height    = Math.min(this.scrollHeight, 300) + 'px';
+            // Wenn die Scrollhöhe größer als 300px ist, Scrollbalken anzeigen
+            this.style.overflowY = this.scrollHeight > 300 ? 'scroll' : 'hidden';
+        });
+
+        // Initial-Größe korrekt setzen
+        setTimeout(() => {
+            userInput.style.height = 'auto';
+            userInput.style.height = Math.min(userInput.scrollHeight, 300) + 'px';
+        }, 0);
+    }
+
+    // IPC-Listener für Dateiverarbeitungs-Status
+    let removeProcessingListener = window.electronAPI.onProcessingStatus((status) => {
+        if (status && typeof status === 'object') {
+            if (status.status === 'processing-files') {
+                // Zeige einen Hinweis an, dass Dateien verarbeitet werden
+                showNotification(`Verarbeite ${status.count} Datei(en)...`, 'info');
+            }
+        }
+    });
 
     // IPC-Listener für LM Studio Status
     let removeStatusListener = window.electronAPI.onLMStudioStatus((status) => {
@@ -154,14 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Zeige Lade-Indikator
         const loadingElement = appendLoading();
 
-        // Vorbereitung für Streaming-Antwort
-        const responseElement     = document.createElement('div');
-        responseElement.className = 'message assistant';
-        const contentElement      = document.createElement('div');
-        contentElement.className  = 'message-content';
-        responseElement.appendChild(contentElement);
-        chatMessages.appendChild(responseElement);
-
         // Feld leeren und Status aktualisieren
         userInput.value = '';
         if (contentUrlInput) contentUrlInput.value = '';
@@ -189,6 +212,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 throw new Error('Netzwerkantwort war nicht ok');
             }
+
+            // Vorbereitung für Streaming-Antwort
+            const responseElement     = document.createElement('div');
+            responseElement.className = 'message assistant';
+            const contentElement      = document.createElement('div');
+            contentElement.className  = 'message-content';
+            responseElement.appendChild(contentElement);
+            chatMessages.appendChild(responseElement);
 
             // Stream-Verarbeitung
             const reader         = response.body.getReader();
@@ -814,6 +845,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (removeSettingsListener) removeSettingsListener();
         if (removeResetListener) removeResetListener();
         if (removeModelListener) removeModelListener();
+        if (removeProcessingListener) removeProcessingListener();
     });
 
     function addCopyButtons() {
@@ -1003,6 +1035,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await window.electronAPI.getAllSources();
 
             if (result.success) {
+                // Speichere die Quellen global für spätere Verwendung
+                sources = {
+                    repositories: result.repositories || {},
+                    folders     : result.folders || {}
+                };
+
                 renderFolders(result.folders);
                 renderRepositories(result.repositories);
             } else {
@@ -1315,9 +1353,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (result.success) {
-                // Aktuellen Pfad aktualisieren
-                currentBrowsingPath         = subPath;
-                fileBrowserPath.textContent = subPath || '/';
+                currentBrowsingPath = subPath;
+                renderBreadcrumbs(subPath);
 
                 // Inhalte anzeigen
                 renderFileBrowserContent(result);
@@ -1327,6 +1364,61 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             fileBrowserContent.innerHTML = `<p class="text-red-500">Fehler: ${error.message}</p>`;
         }
+    }
+
+    function renderBreadcrumbs(path) {
+        if (!fileBrowserPath) return;
+
+        // Leere die aktuelle Breadcrumb
+        fileBrowserPath.innerHTML = '';
+
+        // Root-Element
+        const rootItem       = document.createElement('span');
+        rootItem.className   = 'breadcrumb-item';
+        const rootLink       = document.createElement('a');
+        rootLink.href        = '#';
+        rootLink.textContent = 'Root';
+        rootLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            listFiles(currentBrowsingSource, '');
+        });
+        rootItem.appendChild(rootLink);
+        fileBrowserPath.appendChild(rootItem);
+
+        // Wenn wir im Root-Verzeichnis sind, fertig
+        if (!path) return;
+
+        // Sonst die Pfadsegmente aufteilen und für jedes ein Element erstellen
+        const segments  = path.split('/');
+        let currentPath = '';
+
+        segments.forEach((segment, index) => {
+            if (!segment) return;
+
+            currentPath += (currentPath ? '/' : '') + segment;
+            const isLast = index === segments.length - 1;
+
+            const item     = document.createElement('span');
+            item.className = 'breadcrumb-item';
+
+            if (isLast) {
+                // Das letzte Element ist kein Link
+                item.textContent = segment;
+            } else {
+                // Zwischenelemente sind Links
+                const link       = document.createElement('a');
+                link.href        = '#';
+                link.textContent = segment;
+                const pathToHere = currentPath;
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    listFiles(currentBrowsingSource, pathToHere);
+                });
+                item.appendChild(link);
+            }
+
+            fileBrowserPath.appendChild(item);
+        });
     }
 
 // Datei-Browser-Inhalte rendern
@@ -1495,6 +1587,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fileBrowserSendToChat.disabled  = false;
                 fileBrowserSendToChat.innerHTML = `
                 <i class="fas fa-paper-plane mr-2"></i> ${selectedFiles.length} Datei(en) in Chat einfügen
+                <span class="selected-files-count">${selectedFiles.length}</span>
             `;
             } else {
                 fileBrowserSendToChat.disabled  = true;
@@ -1755,35 +1848,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Dateien an Chat senden
     if (fileBrowserSendToChat) {
-        fileBrowserSendToChat.addEventListener('click', async () => {
+        fileBrowserSendToChat.addEventListener('click', () => {
             if (selectedFiles.length === 0) return;
 
-            const filePromises = selectedFiles.map(file =>
-                window.electronAPI.readFile({
-                    sourceId: file.sourceId,
-                    filePath: file.path
-                })
-            );
-
             try {
-                const results    = await Promise.all(filePromises);
-                let fileContents = '';
+                let fileReferences = '';
 
-                results.forEach((result, index) => {
-                    if (result.success) {
-                        const fileName = selectedFiles[index].name;
-
-                        fileContents += `### Datei: ${fileName}\n\`\`\`${getLanguageFromExtension(result.extension.replace('.', '')) || ''}\n${result.content}\n\`\`\`\n\n`;
-                    }
+                // Dateireferenzen im Format #file:sourceId/pfad/zur/datei.js erstellen
+                selectedFiles.forEach(file => {
+                    fileReferences += `#file:${file.sourceId}/${file.path}\n`;
                 });
 
-                if (fileContents) {
+                if (fileReferences) {
+                    // Hinweistext hinzufügen
+                    const hint = selectedFiles.length === 1
+                        ? "Ich beziehe mich auf folgende Datei:"
+                        : `Ich beziehe mich auf folgende ${selectedFiles.length} Dateien:`;
+
                     // In das Chat-Eingabefeld einfügen
-                    userInput.value += (userInput.value ? '\n\n' : '') + fileContents;
+                    userInput.value += (userInput.value ? '\n\n' : '') +
+                        `${hint}\n${fileReferences}`;
 
                     // Eingabefeld-Höhe anpassen
                     userInput.style.height = 'auto';
-                    userInput.style.height = (userInput.scrollHeight) + 'px';
+                    userInput.style.height = Math.min(userInput.scrollHeight, 300) + 'px';
+                    userInput.style.overflowY = userInput.scrollHeight > 300 ? 'scroll' : 'hidden';
 
                     // Modal schließen
                     fileBrowserModal.style.display = 'none';
@@ -1793,6 +1882,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Fokus auf Eingabefeld setzen
                     userInput.focus();
+
+                    // Benachrichtigung anzeigen
+                    showNotification(
+                        selectedFiles.length === 1
+                            ? "Dateireferenz hinzugefügt"
+                            : `${selectedFiles.length} Dateireferenzen hinzugefügt`,
+                        'success'
+                    );
                 }
             } catch (error) {
                 showNotification(`Fehler: ${error.message}`, 'error');
@@ -1811,4 +1908,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('[data-tab="repositories"]')?.addEventListener('click', () => {
         loadSources();
     });
+
+    function extractFileReferences(text) {
+        const references = [];
+        // Extrahiert #file:sourceId/pfad/zur/datei.js
+        const regex      = /#file:([a-zA-Z0-9_]+)\/([^\s\n]+)/g;
+
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            references.push({
+                sourceId : match[1],
+                path     : match[2],
+                fullMatch: match[0]
+            });
+        }
+
+        return references;
+    }
 });

@@ -169,10 +169,22 @@ function setupExpressRoutes() {
             let shouldSearch = false;
             let urlContent   = null;
 
+            // Prüfe, ob Dateireferenzen im Text enthalten sind und verarbeite sie
+            let processedMessage = message;
+            const fileRefs       = extractFileReferences(message);
+
+            if (fileRefs.length > 0) {
+                // Logging statt UI-Update (das würde im Frontend passieren)
+                console.log(`Verarbeite ${fileRefs.length} Dateireferenz(en)...`);
+
+                // Dateiinhalte verarbeiten und einfügen
+                processedMessage = await processFileReferences(message);
+            }
+
             // Lokalen Modus erkennen
-            let actualMessage = message;
-            if (message.toLowerCase().startsWith('lokal:')) {
-                actualMessage = message.substring(6).trim();
+            let actualMessage = processedMessage;
+            if (processedMessage.toLowerCase().startsWith('lokal:')) {
+                actualMessage = processedMessage.substring(6).trim();
                 shouldSearch  = false; // Immer lokal, wenn explizit angegeben
             } else {
                 // URL-Inhalte abrufen, wenn angegeben
@@ -227,39 +239,13 @@ function setupExpressRoutes() {
                 }
             }
 
-            const fileReferences = await extractFileReferences(message);
-            let fileContents = '';
-
-            if (fileReferences.length > 0) {
-                // Benachrichtigung anzeigen
-                await appendMessage('system', `Lade ${fileReferences.length} referenzierte Datei(en)...`);
-
-                // Dateien laden
-                for (const fileRef of fileReferences) {
-                    try {
-                        const fileContent = await window.electronAPI.readFile({
-                            sourceId: fileRef.sourceId,
-                            filePath: fileRef.path
-                        });
-
-                        if (fileContent.success) {
-                            fileContents += `\nInhalt von ${fileRef.path}:\n\`\`\`\n${fileContent.content}\n\`\`\`\n\n`;
-                        } else {
-                            fileContents += `\nFehler beim Laden von ${fileRef.path}: ${fileContent.error}\n\n`;
-                        }
-                    } catch (error) {
-                        fileContents += `\nFehler beim Laden von ${fileRef.path}: ${error.message}\n\n`;
-                    }
-                }
-            }
-
-            // System-Prompt und LM Studio URL aus den Einstellungen laden
+            // System-Prompt aus den Einstellungen laden
             const systemPrompt = config.systemPrompt;
 
             // Vollständiger Prompt mit Kontext
             const fullMessage = contextInfo
-                ? `${contextInfo}\nFrage: ${actualMessage}${fileContents}`
-                : `${actualMessage}${fileContents}`;
+                ? `${contextInfo}\nFrage: ${actualMessage}`
+                : actualMessage;
 
             // Streaming-Header setzen
             res.setHeader('Content-Type', 'text/event-stream');
@@ -284,6 +270,8 @@ function setupExpressRoutes() {
                         streamContent += token;
                         res.write(`data: ${JSON.stringify(token)}\n\n`);
                     };
+
+                    console.log(messages);
 
                     // Chat-Antwort generieren
                     await llmEngine.generateChatResponse(messages, {
@@ -496,50 +484,95 @@ function shouldPerformWebSearch(message) {
  * @param {string} text - Text, der auf Dateireferenzen geprüft werden soll
  * @returns {Promise<Array>} - Array mit Dateireferenzen
  */
-async function extractFileReferences(text) {
+function extractFileReferences(text) {
+    const references = [];
+    // Extrahiert #file:sourceId/pfad/zur/datei.js
+    const regex      = /#file:([a-zA-Z0-9_]+)\/([^\s\n]+)/g;
+
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        references.push({
+            sourceId : match[1],
+            path     : match[2],
+            fullMatch: match[0]
+        });
+    }
+
+    return references;
+}
+
+async function processFileReferences(message) {
     try {
-        // Alle Quellen abrufen
-        const sources = await window.electronAPI.getAllSources();
-        if (!sources.success) return [];
+        // Wir suchen nach dem Muster #file:sourceId/pfad/zur/datei.js
+        const regex            = /#file:([a-zA-Z0-9_]+)\/([^\s\n]+)/g;
+        let fileContents       = '';
+        let processedFileCount = 0;
 
-        const references = [];
+        // Extrahiere alle Treffer
+        const matches = [];
+        let match;
+        while ((match = regex.exec(message)) !== null) {
+            matches.push({
+                fullMatch: match[0],
+                sourceId : match[1],
+                path     : match[2]
+            });
+        }
 
-        // Repositories prüfen
-        for (const [repoId, repo] of Object.entries(sources.repositories)) {
-            // Suche nach Referenzen im Format: repo:name/pfad/zur/datei.js
-            const repoRegex = new RegExp(`repo:${repo.name}/([\\w\\-./]+)`, 'g');
-            let match;
+        // Wenn wir keine Referenzen gefunden haben, geben wir die ursprüngliche Nachricht zurück
+        if (matches.length === 0) {
+            return message;
+        }
 
-            while ((match = repoRegex.exec(text)) !== null) {
-                references.push({
-                    sourceId: repoId,
-                    path: match[1],
-                    type: 'repository'
-                });
+        // Verarbeite jede Dateireferenz
+        for (const fileRef of matches) {
+            try {
+                // Validiere die sourceId
+                if (!fileRef.sourceId.startsWith('repo_') && !fileRef.sourceId.startsWith('folder_')) {
+                    fileContents += `\nUngültige Quell-ID: ${fileRef.sourceId}\n`;
+                    continue;
+                }
+
+                // Lade den Dateiinhalt
+                const result = await gitConnector.readFile(fileRef.sourceId, fileRef.path);
+
+                if (result.success) {
+                    // Bestimme Dateiendung für Syntax-Highlighting
+                    const extension = path.extname(fileRef.path).toLowerCase().substring(1) || ''; // Entferne den Punkt
+
+                    // Formatiere den Dateiinhalt mit Markdown-Codeblock
+                    fileContents += `\n### Datei: ${fileRef.path}\n\`\`\`${extension}\n${result.content}\n\`\`\`\n\n`;
+                    processedFileCount++;
+                } else {
+                    fileContents += `\nFehler beim Laden von ${fileRef.path}: ${result.error}\n\n`;
+                }
+            } catch (error) {
+                fileContents += `\nFehler beim Verarbeiten von ${fileRef.fullMatch}: ${error.message}\n\n`;
             }
         }
 
-        // Ordner prüfen
-        for (const [folderId, folder] of Object.entries(sources.folders)) {
-            // Suche nach Referenzen im Format: folder:name/pfad/zur/datei.js
-            const folderRegex = new RegExp(`folder:${folder.name}/([\\w\\-./]+)`, 'g');
-            let match;
+        // Jetzt ersetzen wir alle Referenzen in der Nachricht mit einem Platzhalter
+        // und hängen die tatsächlichen Inhalte am Ende an
+        let cleanedMessage = message;
+        matches.forEach(ref => {
+            cleanedMessage = cleanedMessage.replace(ref.fullMatch, '');
+        });
 
-            while ((match = folderRegex.exec(text)) !== null) {
-                references.push({
-                    sourceId: folderId,
-                    path: match[1],
-                    type: 'folder'
-                });
-            }
+        // Bereinige mehrfache Leerzeilen
+        cleanedMessage = cleanedMessage.replace(/\n{3,}/g, '\n\n').trim();
+
+        // Anmerkung hinzufügen, wenn Dateien verarbeitet wurden
+        if (processedFileCount > 0) {
+            return `${cleanedMessage}\n\n--- Dateiinhalte (${processedFileCount} Dateien) ---\n${fileContents}`;
+        } else {
+            return `${cleanedMessage}\n\nHinweis: Es wurden Dateireferenzen gefunden, aber keine gültigen Dateien konnten geladen werden.`;
         }
-
-        return references;
     } catch (error) {
-        console.error('Fehler beim Extrahieren von Dateireferenzen:', error);
-        return [];
+        console.error('Fehler bei der Verarbeitung von Dateireferenzen:', error);
+        return `${message}\n\nFehler bei der Verarbeitung von Dateireferenzen: ${error.message}`;
     }
 }
+
 
 // Electron App erstellen
 async function createWindow() {

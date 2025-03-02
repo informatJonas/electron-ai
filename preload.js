@@ -92,4 +92,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     syncRepository: (options) => ipcRenderer.invoke('sync-repository', options),
     removeSource: (options) => ipcRenderer.invoke('remove-source', options),
     getAllSources: () => ipcRenderer.invoke('get-all-sources'),
+
+    // Status-Updates für die Dateiverarbeitung
+    onProcessingStatus: (callback) => {
+        const wrappedCallback = (_, status) => callback(status);
+        ipcRenderer.on('processing-status', wrappedCallback);
+        return () => ipcRenderer.removeListener('processing-status', wrappedCallback);
+    },
 });
